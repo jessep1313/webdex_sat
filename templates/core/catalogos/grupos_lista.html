@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Grupos{% endblock %}
+{% block content_title %}Listado de Grupos{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Grupos</h3>
+        <div class="card-tools">
+            <a href="{% url 'grupo_crear' %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Nuevo Grupo
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="tablaGrupos" class="table table-bordered table-striped" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Descripción</th>
+                    <th>Activo</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for grupo in grupos %}
+                <tr>
+                    <td>{{ grupo.nombre }}</td>
+                    <td>{{ grupo.descripcion|default:"-" }}</td>
+                    <td>{% if grupo.activo %}Sí{% else %}No{% endif %}</td>
+                    <td>
+                        <a href="{% url 'grupo_editar' grupo.id %}" class="btn btn-info btn-sm">
+                            <i class="bi bi-pencil"></i> Editar
+                        </a>
+                        <a href="{% url 'grupo_eliminar' grupo.id %}" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este grupo? Solo si no tiene empresas asociadas.')">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center">No hay grupos registrados.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var table = document.getElementById('tablaGrupos');
+        if (table) {
+            // Verificar si hay filas en el tbody (sin contar la de "no hay grupos")
+            var hasData = table.querySelector('tbody tr') !== null;
+            // Si la fila de "no hay grupos" es la única, no inicializar DataTables
+            if (hasData && table.querySelector('tbody tr td[colspan="4"]') === null) {
+                $(table).DataTable({
+                    language: {
+                        url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+                    },
+                    pageLength: 10,
+                    order: [[0, 'asc']],
+                    columnDefs: [
+                        { orderable: false, targets: 3 }
+                    ]
+                });
+            }
+        }
+    });
+</script>
+{% endblock %}

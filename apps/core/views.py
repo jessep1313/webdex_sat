@@ -1,8 +1,11 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.hashers import check_password
 from empresas.models import SuperAdmin
 from empresas.models import Grupo, Empresa, Sucursal, Admin, UsuarioCentral, EFirma
+from .decorators import superadmin_required
+
+
 
 def login_view(request):
     if request.method == 'POST':
@@ -33,10 +36,55 @@ def logout_view(request):
 
 from empresas.models import Grupo, Empresa, Sucursal, Admin, UsuarioCentral, EFirma
 
-# Vistas para Catálogos
+@superadmin_required
 def grupos_lista(request):
     grupos = Grupo.objects.using('default').all()
     return render(request, 'core/catalogos/grupos_lista.html', {'grupos': grupos})
+
+
+@superadmin_required
+def grupo_crear(request):
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        descripcion = request.POST.get('descripcion')
+        activo = request.POST.get('activo') == 'on'
+        if not nombre:
+            messages.error(request, 'El nombre es obligatorio.')
+            return render(request, 'core/catalogos/grupo_form.html', {'grupo': None})
+        grupo = Grupo(nombre=nombre, descripcion=descripcion, activo=activo)
+        grupo.save(using='default')
+        messages.success(request, 'Grupo creado correctamente.')
+        return redirect('grupos_lista')
+    return render(request, 'core/catalogos/grupo_form.html', {'grupo': None})
+
+
+@superadmin_required
+def grupo_editar(request, pk):
+    grupo = get_object_or_404(Grupo, pk=pk)
+    if request.method == 'POST':
+        grupo.nombre = request.POST.get('nombre')
+        grupo.descripcion = request.POST.get('descripcion')
+        grupo.activo = request.POST.get('activo') == 'on'
+        grupo.save(using='default')
+        messages.success(request, 'Grupo actualizado correctamente.')
+        return redirect('grupos_lista')
+    return render(request, 'core/catalogos/grupo_form.html', {'grupo': grupo})
+
+
+
+@superadmin_required
+def grupo_eliminar(request, pk):
+    grupo = get_object_or_404(Grupo, pk=pk)
+    # Verificar si hay empresas asociadas
+    if Empresa.objects.using('default').filter(grupo=grupo).exists():
+        messages.error(request, 'No se puede eliminar el grupo porque tiene empresas asociadas.')
+        return redirect('grupos_lista')
+    grupo.delete(using='default')
+    messages.success(request, 'Grupo eliminado correctamente.')
+    return redirect('grupos_lista')
+
+
+
 
 def empresas_lista(request):
     empresas = Empresa.objects.using('default').all()

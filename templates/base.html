@@ -187,8 +187,8 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const sidebarWrapper = document.querySelector('.sidebar-wrapper');
-        if (sidebarWrapper && OverlayScrollbars?.OverlayScrollbars) {
-            OverlayScrollbars.OverlayScrollbars(sidebarWrapper, {
+        if (sidebarWrapper && typeof OverlayScrollbars !== 'undefined') {
+            OverlayScrollbars(sidebarWrapper, {
                 scrollbars: {
                     theme: 'os-theme-light',
                     autoHide: 'leave',

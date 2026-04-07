@@ -25,7 +25,12 @@ urlpatterns = [
     path('', views.login_view, name='login'),
     path('dashboard/', views.dashboard_superadmin, name='dashboard_superadmin'),
     path('logout/', views.logout_view, name='logout'),
+    # ... rutas existentes (login, dashboard, logout)
     path('grupos/', core_views.grupos_lista, name='grupos_lista'),
+    path('grupos/crear/', core_views.grupo_crear, name='grupo_crear'),
+    path('grupos/editar/<int:pk>/', core_views.grupo_editar, name='grupo_editar'),
+    path('grupos/eliminar/<int:pk>/', core_views.grupo_eliminar, name='grupo_eliminar'),
+    # ... otras rutas (empresas, sucursales, etc.)
     path('empresas/', core_views.empresas_lista, name='empresas_lista'),
     path('sucursales/', core_views.sucursales_lista, name='sucursales_lista'),
     path('admin/', core_views.admin_lista, name='admin_lista'),
