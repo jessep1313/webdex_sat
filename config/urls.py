@@ -22,9 +22,10 @@ from apps.core import views as core_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', views.login_view, name='login'),
-    path('dashboard/', views.dashboard_superadmin, name='dashboard_superadmin'),
-    path('logout/', views.logout_view, name='logout'),
+    path('', core_views.login_view, name='login'),
+    path('dashboard/', core_views.dashboard, name='dashboard'),
+    path('logout/', core_views.logout_view, name='logout'),
+
     # ... rutas existentes (login, dashboard, logout)
     path('grupos/', core_views.grupos_lista, name='grupos_lista'),
     path('grupos/crear/', core_views.grupo_crear, name='grupo_crear'),

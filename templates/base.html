@@ -31,7 +31,7 @@
                     </a>
                 </li>
                 <li class="nav-item d-none d-md-block">
-                    <a href="{% url 'dashboard_superadmin' %}" class="nav-link">Inicio</a>
+                    <a href="{% url 'dashboard' %}" class="nav-link">Inicio</a>
                 </li>
             </ul>
 
@@ -55,10 +55,9 @@
     </nav>
 
     <!-- ==================== SIDEBAR (MENÚ LATERAL) ==================== -->
-    <!-- ==================== SIDEBAR (MENÚ LATERAL) ==================== -->
     <aside class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
         <div class="sidebar-brand">
-            <a href="{% url 'dashboard_superadmin' %}" class="brand-link">
+            <a href="{% url 'dashboard' %}" class="brand-link">
                 <span class="brand-text fw-light">Plataforma Fiscal</span>
             </a>
         </div>
@@ -67,14 +66,14 @@
                 <ul class="nav sidebar-menu flex-column" data-lte-toggle="treeview" role="menu" data-accordion="false">
                     <!-- Dashboard siempre visible -->
                     <li class="nav-item">
-                        <a href="{% url 'dashboard_superadmin' %}" class="nav-link">
+                        <a href="{% url 'dashboard' %}" class="nav-link">
                             <i class="nav-icon bi bi-speedometer2"></i>
                             <p>Inicio</p>
                         </a>
                     </li>
 
-                    <!-- Menú solo para superadmin -->
-                    {% if request.session.user_type == 'superadmin' %}
+                    <!-- Menú solo para Superadmin (SA) -->
+                    {% if request.session.user_type == 'SA' %}
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon bi bi-folder"></i>
@@ -135,9 +134,6 @@
         </div>
     </aside>
 
-
-
-
     <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
     <main class="app-main">
         <div class="app-content-header">
@@ -148,7 +144,7 @@
                     </div>
                     <div class="col-sm-6">
                         <ol class="breadcrumb float-sm-end">
-                            <li class="breadcrumb-item"><a href="{% url 'dashboard_superadmin' %}">Inicio</a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Inicio</a></li>
                             {% block breadcrumb %}{% endblock %}
                         </ol>
                     </div>

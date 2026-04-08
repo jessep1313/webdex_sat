@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content_title %}Panel de Control{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5>Bienvenido, {{ request.session.user_nombre }}</h5>
+                <p>Rol: 
+                    {% if request.session.user_type == 'SA' %}Superadministrador{% elif request.session.user_type == 'A' %}Administrador{% else %}Usuario{% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

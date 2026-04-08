@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.hashers import check_password
-from empresas.models import SuperAdmin
+from empresas.models import SuperAdmin, Admin, UsuarioCentral
 from empresas.models import Grupo, Empresa, Sucursal, Admin, UsuarioCentral, EFirma
 from .decorators import superadmin_required
 from django.conf import settings
@@ -16,18 +16,70 @@ def login_view(request):
     if request.method == 'POST':
         email = request.POST.get('email')
         password = request.POST.get('password')
+
+        # 1. Buscar en superadmins
         try:
-            user = SuperAdmin.objects.get(email=email, activo=True)
+            user = SuperAdmin.objects.using('default').get(email=email, activo=True)
             if check_password(password, user.password):
                 request.session['user_id'] = user.id
-                request.session['user_type'] = 'superadmin'
                 request.session['user_nombre'] = user.nombre
-                return redirect('dashboard_superadmin')
+                request.session['user_email'] = user.email
+                request.session['user_type'] = 'SA'
+                return redirect('dashboard')
             else:
                 messages.error(request, 'Contraseña incorrecta')
+                return render(request, 'core/login.html')
         except SuperAdmin.DoesNotExist:
-            messages.error(request, 'Usuario no encontrado')
+            pass
+
+        # 2. Buscar en admin
+        try:
+            user = Admin.objects.using('default').get(email=email, activo=True)
+            if check_password(password, user.password):
+                request.session['user_id'] = user.id
+                request.session['user_nombre'] = user.nombre
+                request.session['user_email'] = user.email
+                request.session['user_type'] = 'A'
+                # Opcional: guardar empresa_id, grupo_id si se necesita
+                request.session['empresa_id'] = user.empresa_id if user.empresa else None
+                return redirect('dashboard')
+            else:
+                messages.error(request, 'Contraseña incorrecta')
+                return render(request, 'core/login.html')
+        except Admin.DoesNotExist:
+            pass
+
+        # 3. Buscar en usuarios
+        try:
+            user = UsuarioCentral.objects.using('default').get(email=email, activo=True)
+            if check_password(password, user.password):
+                request.session['user_id'] = user.id
+                request.session['user_nombre'] = user.nombre
+                request.session['user_email'] = user.email
+                request.session['user_type'] = 'US'
+                # Opcional: guardar empresa_id, sucursal_id
+                request.session['empresa_id'] = user.empresa_id if user.empresa else None
+                request.session['sucursal_id'] = user.sucursal_id if user.sucursal else None
+                return redirect('dashboard')
+            else:
+                messages.error(request, 'Contraseña incorrecta')
+                return render(request, 'core/login.html')
+        except UsuarioCentral.DoesNotExist:
+            pass
+
+        # Si no se encontró en ninguna tabla
+        messages.error(request, 'Usuario no encontrado o inactivo')
+        return render(request, 'core/login.html')
+
     return render(request, 'core/login.html')
+
+
+def dashboard(request):
+    user_type = request.session.get('user_type')
+    if not user_type:
+        return redirect('login')
+    return render(request, 'core/dashboard.html')
+    
 
 def dashboard_superadmin(request):
     if request.session.get('user_type') != 'superadmin':
