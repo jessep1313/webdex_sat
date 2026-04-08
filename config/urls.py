@@ -36,4 +36,9 @@ urlpatterns = [
     path('admin/', core_views.admin_lista, name='admin_lista'),
     path('usuarios/', core_views.usuarios_lista, name='usuarios_lista'),
     path('efirma/', core_views.efirma_lista, name='efirma_lista'),
+    # ... otras rutas (login, dashboard, logout, grupos...)
+    path('empresas/', core_views.empresas_lista, name='empresas_lista'),
+    path('empresas/crear/', core_views.empresa_crear, name='empresa_crear'),
+    path('empresas/editar/<int:pk>/', core_views.empresa_editar, name='empresa_editar'),
+    path('empresas/eliminar/<int:pk>/', core_views.empresa_eliminar, name='empresa_eliminar'),
 ]

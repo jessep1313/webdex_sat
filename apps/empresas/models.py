@@ -36,18 +36,15 @@ class Grupo(models.Model):
 # =====================================================
 class Empresa(models.Model):
     nombre = models.CharField(max_length=255)
-    rfc = models.CharField(max_length=13)
+    rfc = models.CharField(max_length=13, unique=True)  # Debe ser único
     grupo = models.ForeignKey(Grupo, on_delete=models.SET_NULL, null=True, blank=True, db_column='grupo_id')
-    db_name = models.CharField(max_length=100)
+    db_name = models.CharField(max_length=100, unique=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
         managed = False
         db_table = 'empresas'
-
-    def __str__(self):
-        return self.nombre
 
 # =====================================================
 # Tabla: sucursales

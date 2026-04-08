@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}{% if empresa %}Editar{% else %}Nueva{% endif %} Empresa{% endblock %}
+{% block content_title %}{% if empresa %}Editar{% else %}Nueva{% endif %} Empresa{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Datos de la empresa</h3>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="nombre" class="form-label">Nombre</label>
+                <input type="text" name="nombre" id="nombre" class="form-control" value="{{ empresa.nombre|default:'' }}" required>
+            </div>
+            <div class="mb-3">
+                <label for="rfc" class="form-label">RFC</label>
+                <input type="text" name="rfc" id="rfc" class="form-control" value="{{ empresa.rfc|default:'' }}" {% if empresa %}readonly{% endif %} required>
+                <small class="text-muted">El RFC no se puede modificar después de crear la empresa.</small>
+            </div>
+            <div class="mb-3">
+                <label for="grupo" class="form-label">Grupo</label>
+                <select name="grupo" id="grupo" class="form-select" required>
+                    <option value="">Seleccione un grupo</option>
+                    {% for grupo in grupos %}
+                    <option value="{{ grupo.id }}" {% if empresa.grupo.id == grupo.id %}selected{% endif %}>{{ grupo.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3 form-check">
+                <input type="checkbox" name="activo" id="activo" class="form-check-input" {% if empresa.activo %}checked{% endif %}>
+                <label for="activo" class="form-check-label">Activo</label>
+            </div>
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <a href="{% url 'empresas_lista' %}" class="btn btn-secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
