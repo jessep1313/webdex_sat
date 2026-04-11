@@ -80,7 +80,24 @@ urlpatterns = [
     path('panel-admin/efirma/log/', core_views.admin_efirma_log_lista, name='admin_efirma_log_lista'),
 
     path('panel-admin/correos/', core_views.admin_correos_lista, name='admin_correos_lista'),
-path('panel-admin/correos/crear/', core_views.admin_correo_crear, name='admin_correo_crear'),
-path('panel-admin/correos/editar/<int:pk>/', core_views.admin_correo_editar, name='admin_correo_editar'),
-path('panel-admin/correos/eliminar/<int:pk>/', core_views.admin_correo_eliminar, name='admin_correo_eliminar'),
+    path('panel-admin/correos/crear/', core_views.admin_correo_crear, name='admin_correo_crear'),
+    path('panel-admin/correos/editar/<int:pk>/', core_views.admin_correo_editar, name='admin_correo_editar'),
+    path('panel-admin/correos/eliminar/<int:pk>/', core_views.admin_correo_eliminar, name='admin_correo_eliminar'),
+
+
+    # Usuario normal
+    path('usuario/dashboard/', core_views.usuario_dashboard, name='usuario_dashboard'),
+    path('usuario/peticiones-sat/', core_views.usuario_peticiones_sat, name='usuario_peticiones_sat'),
+    path('usuario/recibidas/', core_views.usuario_recibidas, name='usuario_recibidas'),
+    path('usuario/emitidas/', core_views.usuario_emitidas, name='usuario_emitidas'),
+    path('usuario/proveedores/', core_views.usuario_proveedores_lista, name='usuario_proveedores_lista'),
+    path('usuario/proveedores-sin-cfdi/', core_views.usuario_proveedores_sin_cfdi, name='usuario_proveedores_sin_cfdi'),
+    path('usuario/opiniones/', core_views.usuario_opiniones, name='usuario_opiniones'),
+    path('usuario/constancias/', core_views.usuario_constancias, name='usuario_constancias'),
+    path('usuario/validacion-domicilio/', core_views.usuario_validacion_domicilio, name='usuario_validacion_domicilio'),
+    path('usuario/articulo69/', core_views.usuario_articulo69, name='usuario_articulo69'),
+    path('usuario/articulo69b/', core_views.usuario_articulo69b, name='usuario_articulo69b'),
+    path('usuario/articulo69bis/', core_views.usuario_articulo69bis, name='usuario_articulo69bis'),
+    path('usuario/recibidas/', core_views.usuario_recibidas, name='usuario_recibidas'),
+
 ]

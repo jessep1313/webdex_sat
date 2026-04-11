@@ -197,6 +197,101 @@
                         </ul>
                     </li>
                     {% endif %}
+
+                    <!-- Menú para Usuario Normal (US) -->
+                    {% if request.session.user_type == 'US' %}
+        
+                    <li class="nav-item has-treeview">
+                        <a href="#" class="nav-link">
+                            <i class="nav-icon bi bi-file-earmark-text"></i>
+                            <p>Facturas CFDI <i class="nav-arrow bi bi-chevron-right"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_peticiones_sat' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Peticiones SAT CFDI</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_recibidas' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Recibidas</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_emitidas' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Emitidas</p>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="nav-item has-treeview">
+                        <a href="#" class="nav-link">
+                            <i class="nav-icon bi bi-people"></i>
+                            <p>Proveedores <i class="nav-arrow bi bi-chevron-right"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_proveedores_lista' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Listado</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_proveedores_sin_cfdi' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Listado sin CFDI</p>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="nav-item has-treeview">
+                        <a href="#" class="nav-link">
+                            <i class="nav-icon bi bi-folder"></i>
+                            <p>Expediente <i class="nav-arrow bi bi-chevron-right"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_opiniones' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Opiniones de cumplimiento</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_constancias' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Constancia situacion fiscal</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_validacion_domicilio' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Validacion domicilio</p>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="nav-item has-treeview">
+                        <a href="#" class="nav-link">
+                            <i class="nav-icon bi bi-exclamation-triangle"></i>
+                            <p>Listas negras SAT <i class="nav-arrow bi bi-chevron-right"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_articulo69' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Artículo 69</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_articulo69b' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Artículo 69-B</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'usuario_articulo69bis' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Artículo 69-Bis</p>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    {% endif %}
+
+
+
                 </ul>
             </nav>
         </div>

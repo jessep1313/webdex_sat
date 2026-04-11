@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS configuracion_correos (
 -- Tabla peticiones_sat
 CREATE TABLE IF NOT EXISTS peticiones_sat (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    idpeticion VARCHAR(255) NULL,
     estatuspeticion INT NOT NULL,
     fechainicio DATE NOT NULL,
     fechafinal DATE NOT NULL,

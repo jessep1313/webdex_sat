@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}CFDI Recibidas{% endblock %}
+{% block content_title %}Facturas Recibidas - {{ request.session.empresa_nombre }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">Filtro de fechas</h3>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                {{ form.fecha_inicio.label_tag }}
+                {{ form.fecha_inicio }}
+            </div>
+            <div class="col-md-4">
+                {{ form.fecha_fin.label_tag }}
+                {{ form.fecha_fin }}
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">Filtrar</button>
+                <a href="{% url 'usuario_recibidas' %}" class="btn btn-secondary">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card card-info">
+            <div class="card-header">
+                <h3 class="card-title">Resumen</h3>
+            </div>
+            <div class="card-body">
+                <p><strong>Total de facturas:</strong> {{ total_registros }}</p>
+                <p><strong>Suma total:</strong> ${{ suma_total|floatformat:2 }} MXN</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-warning">
+            <div class="card-header">
+                <h3 class="card-title">Acciones</h3>
+            </div>
+            <div class="card-body">
+                <button type="button" class="btn btn-info" id="btnRevisarPeticiones">Revisar peticiones</button>
+                <small class="text-muted">(Próximamente: verificar estado de peticiones SAT)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card card-success">
+            <div class="card-header">
+                <h3 class="card-title">Gráficos</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <canvas id="chartCantidad" style="height: 300px;"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <canvas id="chartMonto" style="height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Listado de CFDI</h3>
+    </div>
+    <div class="card-body">
+        <table id="tablaCfdi" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>UUID</th>
+                    <th>Fecha</th>
+                    <th>RFC Emisor</th>
+                    <th>RFC Receptor</th>
+                    <th>Total</th>
+                    <th>Moneda</th>
+                    <th>Forma de pago</th>
+                    <th>Método de pago</th>
+                    <th>Fecha timbrado</th>
+                    <th>Saldo pendiente</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cfdi in cfdis %}
+                <tr>
+                    <td>{{ cfdi.uuid }}</td>
+                    <td>{{ cfdi.fecha }}</td>
+                    <td>{{ cfdi.rfc_emisor }}</td>
+                    <td>{{ cfdi.rfc_receptor }}</td>
+                    <td>${{ cfdi.total }}</td>
+                    <td>{{ cfdi.moneda }}</td>
+                    <td>{{ cfdi.forma_pago }}</td>
+                    <td>{{ cfdi.metodo_pago }}</td>
+                    <td>{{ cfdi.fecha_timbrado }}</td>
+                    <td>${{ cfdi.saldo_pendiente }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="10" class="text-center">No hay CFDI en el rango seleccionado.{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Pasar datos para gráficos
+    const meses = {{ meses|safe }};
+    const cantidades = {{ cantidades|safe }};
+    const montos = {{ montos|safe }};
+
+    // Gráfico de cantidad
+    if (meses.length) {
+        const ctxCantidad = document.getElementById('chartCantidad').getContext('2d');
+        new Chart(ctxCantidad, {
+            type: 'bar',
+            data: {
+                labels: meses,
+                datasets: [{
+                    label: 'Cantidad de facturas',
+                    data: cantidades,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Cantidad' } },
+                    x: { title: { display: true, text: 'Mes' } }
+                }
+            }
+        });
+
+        // Gráfico de monto
+        const ctxMonto = document.getElementById('chartMonto').getContext('2d');
+        new Chart(ctxMonto, {
+            type: 'line',
+            data: {
+                labels: meses,
+                datasets: [{
+                    label: 'Monto total (MXN)',
+                    data: montos,
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Monto (MXN)' } },
+                    x: { title: { display: true, text: 'Mes' } }
+                }
+            }
+        });
+    }
+
+    // Inicializar DataTable
+    $(document).ready(function() {
+        $('#tablaCfdi').DataTable({
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 20,
+            order: [[1, 'desc']]
+        });
+    });
+
+    // Botón "Revisar peticiones" (placeholder)
+    document.getElementById('btnRevisarPeticiones').addEventListener('click', function() {
+        alert('Funcionalidad en desarrollo: se podrá verificar el estado de las peticiones SAT y descargar XML.');
+    });
+</script>
+{% endblock %}

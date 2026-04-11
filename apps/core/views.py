@@ -1143,3 +1143,271 @@ def admin_correo_eliminar(request, pk):
         cursor.execute("DELETE FROM configuracion_correos WHERE id = %s", [pk])
     messages.success(request, 'Configuración eliminada correctamente.')
     return redirect('admin_correos_lista')
+
+
+
+# ========== USUARIO NORMAL (US) ==========
+@usuario_required
+def usuario_dashboard(request):
+    return render(request, 'core/usuario/dashboard.html')
+
+import tempfile
+import os
+from datetime import date
+from django.core.signing import loads
+from django.conf import settings
+from django.db import connections
+from satcfdi.models import Signer
+from satcfdi.pacs.sat import SAT, TipoDescargaMasivaTerceros, EstadoComprobante
+from empresas.models import EFirma
+from .decorators import usuario_required
+from .forms import PeticionSatForm
+
+@usuario_required
+@usuario_required
+def usuario_peticiones_sat(request):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    empresa_nombre = request.session.get('empresa_nombre')
+    if not db_name or not rfc_empresa or not empresa_nombre:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+
+    try:
+        efirma = EFirma.objects.using('default').get(empresa=empresa_nombre, estatus='validado')
+    except EFirma.DoesNotExist:
+        messages.error(request, 'La empresa no tiene una FIEL válida cargada. Contacte al administrador.')
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        form = PeticionSatForm(request.POST)
+        if form.is_valid():
+            tipo = form.cleaned_data['tipo']
+            fechainicio = form.cleaned_data['fechainicio']
+            fechafinal = form.cleaned_data['fechafinal']
+            if fechafinal > date.today():
+                messages.error(request, 'La fecha final no puede ser mayor a hoy.')
+                return render(request, 'core/usuario/peticiones_sat.html', {'form': form})
+
+            cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+            key_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_key)
+            if not os.path.exists(cer_path) or not os.path.exists(key_path):
+                messages.error(request, 'Los archivos de la FIEL no existen en el servidor.')
+                return render(request, 'core/usuario/peticiones_sat.html', {'form': form})
+
+            try:
+                password = loads(efirma.password)
+                with open(cer_path, 'rb') as cer_file, open(key_path, 'rb') as key_file:
+                    signer = Signer.load(
+                        certificate=cer_file.read(),
+                        key=key_file.read(),
+                        password=password
+                    )
+                sat = SAT(signer=signer)
+                if tipo == 'R':
+                    respuesta = sat.recover_comprobante_received_request(
+                        fecha_inicial=fechainicio,
+                        fecha_final=fechafinal,
+                        rfc_receptor=signer.rfc,
+                        tipo_solicitud=TipoDescargaMasivaTerceros.CFDI,
+                        estado_comprobante=EstadoComprobante.VIGENTE
+                    )
+                else:  # tipo == 'E'
+                    respuesta = sat.recover_comprobante_emitted_request(
+                        fecha_inicial=fechainicio,
+                        fecha_final=fechafinal,
+                        rfc_emisor=signer.rfc,
+                        tipo_solicitud=TipoDescargaMasivaTerceros.CFDI,
+                        estado_comprobante=EstadoComprobante.VIGENTE
+                    )
+                # Guardar petición en la base de datos de la empresa
+                with connections[db_name].cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO peticiones_sat 
+                        (idpeticion, estatuspeticion, fechainicio, fechafinal, rfc, CodEstatus, Mensaje, RfcSolicitante, tipo, idusuario_central)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, [
+                        respuesta['IdSolicitud'],
+                        0,  # pendiente de descarga
+                        fechainicio,
+                        fechafinal,
+                        rfc_empresa,
+                        respuesta.get('CodEstatus', ''),
+                        respuesta.get('Mensaje', ''),
+                        respuesta.get('RfcSolicitante', ''),
+                        tipo,
+                        request.session.get('user_id')
+                    ])
+                messages.success(request, f'Solicitud de {"Recibidas" if tipo=="R" else "Emitidas"} creada. ID: {respuesta["IdSolicitud"]}')
+                return redirect('usuario_peticiones_sat')
+            except Exception as e:
+                messages.error(request, f'Error en la petición: {str(e)}')
+        else:
+            messages.error(request, 'Corrige los errores del formulario.')
+    else:
+        form = PeticionSatForm()
+
+    # Obtener listado de peticiones (ambos tipos)
+    peticiones = []
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT idpeticion, fechainicio, fechafinal, CodEstatus, Mensaje, created_at, tipo
+            FROM peticiones_sat
+            WHERE rfc = %s
+            ORDER BY created_at DESC
+        """, [rfc_empresa])
+        for row in cursor.fetchall():
+            peticiones.append({
+                'idpeticion': row[0],
+                'fechainicio': row[1],
+                'fechafinal': row[2],
+                'CodEstatus': row[3],
+                'Mensaje': row[4],
+                'created_at': row[5],
+                'tipo': row[6],
+            })
+    return render(request, 'core/usuario/peticiones_sat.html', {
+        'form': form,
+        'peticiones': peticiones
+    })
+
+
+
+
+from django.db import connections
+from datetime import date
+from .forms import FechasForm
+
+@usuario_required
+def usuario_recibidas(request):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+
+    # Tabla fija para recibidos
+    tabla = "cfdi_recibido"
+
+    fecha_inicio = request.GET.get('fecha_inicio')
+    fecha_fin = request.GET.get('fecha_fin')
+    if not fecha_inicio and not fecha_fin:
+        hoy = date.today()
+        fecha_inicio = hoy.replace(day=1).isoformat()
+        fecha_fin = hoy.isoformat()
+        form = FechasForm(initial={'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin})
+    else:
+        form = FechasForm(request.GET)
+
+    where_clause = ""
+    params = [rfc_empresa]
+    if fecha_inicio:
+        where_clause += " AND fecha_comprobante >= %s"
+        params.append(fecha_inicio)
+    if fecha_fin:
+        where_clause += " AND fecha_comprobante <= %s"
+        params.append(fecha_fin)
+
+    with connections[db_name].cursor() as cursor:
+        # Datos de la tabla
+        cursor.execute(f"""
+            SELECT uuid, fecha_comprobante, rfc_emisor, rfc_receptor, total,
+                   moneda, forma_pago, metodo_pago, fecha_timbrado, saldo_pendiente
+            FROM {tabla}
+            WHERE rfc_receptor = %s {where_clause}
+            ORDER BY fecha_comprobante DESC
+        """, params)
+        cfdis = cursor.fetchall()
+
+        # Resumen
+        cursor.execute(f"""
+            SELECT COUNT(*) as total, SUM(CAST(total AS DECIMAL(18,2))) as suma_total
+            FROM {tabla}
+            WHERE rfc_receptor = %s {where_clause}
+        """, params)
+        resumen = cursor.fetchone()
+        total_registros = resumen[0] or 0
+        suma_total = float(resumen[1] or 0)
+
+        # Datos para gráficos por mes
+        cursor.execute(f"""
+            SELECT
+                CONCAT(YEAR(fecha_comprobante), '-', LPAD(MONTH(fecha_comprobante), 2, '0')) as mes,
+                COUNT(*) as cantidad,
+                SUM(CAST(total AS DECIMAL(18,2))) as monto
+            FROM {tabla}
+            WHERE rfc_receptor = %s AND fecha_comprobante IS NOT NULL {where_clause}
+            GROUP BY YEAR(fecha_comprobante), MONTH(fecha_comprobante)
+            ORDER BY mes
+        """, params)
+        datos_meses = cursor.fetchall()
+
+    meses = [row[0] for row in datos_meses]
+    cantidades = [row[1] for row in datos_meses]
+    montos = [float(row[2]) for row in datos_meses]
+
+    # Formatear datos para la tabla
+    data = []
+    for row in cfdis:
+        data.append({
+            'uuid': row[0],
+            'fecha': row[1].strftime('%d/%m/%Y') if row[1] else '',
+            'rfc_emisor': row[2],
+            'rfc_receptor': row[3],
+            'total': f"{float(row[4]):.2f}",
+            'moneda': row[5],
+            'forma_pago': row[6],
+            'metodo_pago': row[7],
+            'fecha_timbrado': row[8].strftime('%d/%m/%Y %H:%M') if row[8] else '',
+            'saldo_pendiente': f"{float(row[9]):.2f}"
+        })
+
+    context = {
+        'form': form,
+        'cfdis': data,
+        'total_registros': total_registros,
+        'suma_total': suma_total,
+        'meses': meses,
+        'cantidades': cantidades,
+        'montos': montos,
+    }
+    return render(request, 'core/usuario/recibidas.html', context)
+
+    
+
+
+@usuario_required
+def usuario_emitidas(request):
+    return render(request, 'core/usuario/en_construccion.html')
+
+@usuario_required
+def usuario_proveedores_lista(request):
+    return render(request, 'core/usuario/en_construccion.html')
+
+@usuario_required
+def usuario_proveedores_sin_cfdi(request):
+    return render(request, 'core/usuario/en_construccion.html')
+
+@usuario_required
+def usuario_opiniones(request):
+    return render(request, 'core/usuario/en_construccion.html')
+
+@usuario_required
+def usuario_constancias(request):
+    return render(request, 'core/usuario/en_construccion.html')
+
+@usuario_required
+def usuario_validacion_domicilio(request):
+    return render(request, 'core/usuario/en_construccion.html')
+
+@usuario_required
+def usuario_articulo69(request):
+    return render(request, 'core/usuario/en_construccion.html')
+
+@usuario_required
+def usuario_articulo69b(request):
+    return render(request, 'core/usuario/en_construccion.html')
+
+@usuario_required
+def usuario_articulo69bis(request):
+    return render(request, 'core/usuario/en_construccion.html')
