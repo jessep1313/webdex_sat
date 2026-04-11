@@ -532,3 +532,172 @@ def api_sucursales(request):
         return JsonResponse([], safe=False)
     sucursales = Sucursal.objects.using('default').filter(empresa_id=empresa_id, activo=True).values('id', 'nombre')
     return JsonResponse(list(sucursales), safe=False)
+
+
+
+
+# ========== EFIRMAS (SAT) ==========
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.core.signing import dumps, loads
+from django.conf import settings
+import os
+import tempfile
+from satcfdi.models import Signer
+from empresas.models import EFirmaLog
+
+@superadmin_required
+def efirma_crear(request):
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        empresa_id = request.POST.get('empresa')
+        archivo_cer = request.FILES.get('archivo_cer')
+        archivo_key = request.FILES.get('archivo_key')
+        password = request.POST.get('password')
+
+        if not empresa_id or not archivo_cer or not archivo_key or not password:
+            messages.error(request, 'Todos los campos son obligatorios.')
+            return render(request, 'core/sat/efirma_form.html', {'empresas': empresas})
+
+        empresa = Empresa.objects.using('default').get(pk=empresa_id)
+        grupo_nombre = empresa.grupo.nombre if empresa.grupo else 'Sin grupo'
+        rfc_empresa = empresa.rfc
+        upload_path = f"efirmas/{rfc_empresa}/"
+        cer_name = f"{rfc_empresa}_certificado.cer"
+        key_name = f"{rfc_empresa}_llave.key"
+
+        cer_path = default_storage.save(upload_path + cer_name, ContentFile(archivo_cer.read()))
+        key_path = default_storage.save(upload_path + key_name, ContentFile(archivo_key.read()))
+
+        password_cifrada = dumps(password)
+
+        efirma = EFirma(
+            archivo_cer=cer_path,
+            archivo_key=key_path,
+            password=password_cifrada,
+            estatus='pendiente',
+            grupo=grupo_nombre,
+            empresa=empresa.nombre
+        )
+        efirma.save(using='default')
+
+        # Registrar en log
+        usuario = request.session.get('user_nombre', request.session.get('user_email', 'Desconocido'))
+        EFirmaLog.objects.using('default').create(
+            efirma_id=efirma.id,
+            accion=f"Creada por {usuario}"
+        )
+        messages.success(request, 'FIEL cargada correctamente. Puede validarla ahora.')
+        return redirect('efirma_lista')
+    return render(request, 'core/sat/efirma_form.html', {'empresas': empresas})
+
+@superadmin_required
+def efirma_validar(request, pk):
+    efirma = get_object_or_404(EFirma, pk=pk)
+    try:
+        password = loads(efirma.password)
+    except Exception:
+        messages.error(request, 'Error al descifrar la contraseña.')
+        return redirect('efirma_lista')
+
+    cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+    key_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_key)
+
+    if not os.path.exists(cer_path) or not os.path.exists(key_path):
+        messages.error(request, 'Los archivos de la FIEL no existen en el servidor.')
+        efirma.estatus = 'rechazado'
+        efirma.save(using='default')
+        usuario = request.session.get('user_nombre', request.session.get('user_email', 'Desconocido'))
+        EFirmaLog.objects.using('default').create(
+            efirma_id=efirma.id,
+            accion=f"Validación fallida (archivos no encontrados) por {usuario}"
+        )
+        return redirect('efirma_lista')
+
+    try:
+        with open(cer_path, 'rb') as cer_file, open(key_path, 'rb') as key_file:
+            signer = Signer.load(
+                certificate=cer_file.read(),
+                key=key_file.read(),
+                password=password
+            )
+        efirma.estatus = 'validado'
+        mensaje = f"Validado - RFC: {signer.rfc}, Nombre: {signer.legal_name}"
+        messages.success(request, mensaje)
+    except Exception as e:
+        efirma.estatus = 'rechazado'
+        mensaje = f"Rechazado - Error: {str(e)}"
+        messages.error(request, mensaje)
+    efirma.save(using='default')
+    usuario = request.session.get('user_nombre', request.session.get('user_email', 'Desconocido'))
+    EFirmaLog.objects.using('default').create(
+        efirma_id=efirma.id,
+        accion=f"{mensaje} por {usuario}"
+    )
+    return redirect('efirma_lista')
+
+@superadmin_required
+def efirma_eliminar(request, pk):
+    efirma = get_object_or_404(EFirma, pk=pk)
+    cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+    key_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_key)
+    if os.path.exists(cer_path):
+        os.remove(cer_path)
+    if os.path.exists(key_path):
+        os.remove(key_path)
+    efirma.delete(using='default')
+    usuario = request.session.get('user_nombre', request.session.get('user_email', 'Desconocido'))
+    EFirmaLog.objects.using('default').create(
+        efirma_id=pk,
+        accion=f"Eliminada por {usuario}"
+    )
+    messages.success(request, 'Registro de FIEL eliminado correctamente.')
+    return redirect('efirma_lista')
+
+
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+
+@superadmin_required
+def efirma_actualizar_vigencia(request, pk):
+    efirma = get_object_or_404(EFirma, pk=pk)
+    cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+    if not os.path.exists(cer_path):
+        messages.error(request, 'El archivo .cer no existe.')
+        return redirect('efirma_lista')
+    try:
+        with open(cer_path, 'rb') as cer_file:
+            cert_data = cer_file.read()
+            # Intentar cargar como PEM primero
+            try:
+                cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+            except Exception:
+                # Si falla, intentar como DER
+                cert = x509.load_der_x509_certificate(cert_data, default_backend())
+            efirma.vigencia = cert.not_valid_after.date()
+        efirma.save(using='default')
+        usuario = request.session.get('user_nombre', 'Desconocido')
+        EFirmaLog.objects.using('default').create(
+            efirma_id=efirma.id,
+            accion=f"Vigencia actualizada: {efirma.vigencia} por {usuario}"
+        )
+        messages.success(request, 'Vigencia actualizada correctamente.')
+    except Exception as e:
+        messages.error(request, f'Error al leer la vigencia: {str(e)}')
+    return redirect('efirma_lista')
+
+
+@superadmin_required
+def efirma_log_lista(request):
+    logs = EFirmaLog.objects.using('default').select_related().all().order_by('-fecha')
+    # Para cada log, obtenemos la empresa y grupo desde la eFirma asociada
+    for log in logs:
+        try:
+            efirma = EFirma.objects.using('default').get(pk=log.efirma_id)
+            log.empresa_nombre = efirma.empresa
+            log.grupo_nombre = efirma.grupo
+        except EFirma.DoesNotExist:
+            log.empresa_nombre = 'Eliminada'
+            log.grupo_nombre = '-'
+    return render(request, 'core/sat/efirma_log_lista.html', {'logs': logs})

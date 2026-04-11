@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Nueva eFirma{% endblock %}
+{% block content_title %}Carga de FIEL para Empresa{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Datos de la eFirma</h3>
+    </div>
+    <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="empresa" class="form-label">Empresa</label>
+                <select name="empresa" id="empresa" class="form-select" required>
+                    <option value="">Seleccione una empresa</option>
+                    {% for empresa in empresas %}
+                    <option value="{{ empresa.id }}">{{ empresa.nombre }} (RFC: {{ empresa.rfc }})</option>
+                    {% endfor %}
+                </select>
+                <small class="text-muted">El RFC y el grupo de la empresa se asignarán automáticamente.</small>
+            </div>
+            <div class="mb-3">
+                <label for="archivo_cer" class="form-label">Archivo .cer</label>
+                <input type="file" name="archivo_cer" id="archivo_cer" class="form-control" accept=".cer" required>
+            </div>
+            <div class="mb-3">
+                <label for="archivo_key" class="form-label">Archivo .key</label>
+                <input type="file" name="archivo_key" id="archivo_key" class="form-control" accept=".key" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Contraseña</label>
+                <input type="password" name="password" id="password" class="form-control" required>
+            </div>
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <a href="{% url 'efirma_lista' %}" class="btn btn-secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

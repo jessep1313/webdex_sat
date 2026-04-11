@@ -57,4 +57,14 @@ urlpatterns = [
 
     path('api/sucursales/', core_views.api_sucursales, name='api_sucursales'),
 
+    path('efirma/', core_views.efirma_lista, name='efirma_lista'),
+    path('efirma/crear/', core_views.efirma_crear, name='efirma_crear'),
+    path('efirma/validar/<int:pk>/', core_views.efirma_validar, name='efirma_validar'),
+    path('efirma/eliminar/<int:pk>/', core_views.efirma_eliminar, name='efirma_eliminar'),
+
+    path('efirma/actualizar-vigencia/<int:pk>/', core_views.efirma_actualizar_vigencia, name='efirma_actualizar_vigencia'),
+
+    path('efirma/log/', core_views.efirma_log_lista, name='efirma_log_lista'),
+
+
 ]

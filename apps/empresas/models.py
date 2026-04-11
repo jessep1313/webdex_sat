@@ -153,16 +153,13 @@ class EFirma(models.Model):
 # Tabla: efirmas_log
 # =====================================================
 class EFirmaLog(models.Model):
-    efirma = models.ForeignKey(EFirma, on_delete=models.CASCADE, db_column='efirma_id')
+    efirma_id = models.IntegerField()  # Solo almacena el ID, sin FK real
     accion = models.CharField(max_length=255)
     fecha = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = False
         db_table = 'efirmas_log'
-
-    def __str__(self):
-        return f"{self.efirma.id} - {self.accion} - {self.fecha}"
 
 # =====================================================
 # Tabla: metadata
@@ -192,3 +189,28 @@ class Servicio(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+class EFirma(models.Model):
+    ESTATUS_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('validado', 'Validado'),
+        ('rechazado', 'Rechazado'),
+    ]
+
+    archivo_cer = models.CharField(max_length=100)
+    archivo_key = models.CharField(max_length=100)
+    password = models.CharField(max_length=255)
+    fecha_carga = models.DateTimeField(auto_now_add=True)
+    estatus = models.CharField(max_length=20, choices=ESTATUS_CHOICES, default='pendiente')
+    grupo = models.CharField(max_length=100, blank=True, null=True)
+    empresa = models.CharField(max_length=100, blank=True, null=True)
+    vigencia = models.DateField(null=True, blank=True)  # Campo existente
+
+    class Meta:
+        managed = False
+        db_table = 'efirmas'
+
+    def __str__(self):
+        return f"EFirma {self.id} - {self.empresa} - {self.estatus}"
+
