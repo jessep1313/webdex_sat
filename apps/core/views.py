@@ -1054,3 +1054,92 @@ def admin_efirma_log_lista(request):
             log.empresa_nombre = empresa.nombre
             log.grupo_nombre = '-'
     return render(request, 'core/sat/admin_efirma_log_lista.html', {'logs': logs})
+
+
+
+from django.db import connections
+
+@admin_required
+def admin_correos_lista(request):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        messages.error(request, 'No se ha identificado la base de datos de la empresa.')
+        return redirect('dashboard')
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT id, tipo, titulo, cuerpo, created_at FROM configuracion_correos ORDER BY tipo")
+        rows = cursor.fetchall()
+    correos = []
+    for row in rows:
+        correos.append({
+            'id': row[0],
+            'tipo': row[1],
+            'titulo': row[2],
+            'cuerpo': row[3],
+            'created_at': row[4],
+        })
+    return render(request, 'core/correos/admin_correos_lista.html', {'correos': correos})
+
+@admin_required
+def admin_correo_crear(request):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        messages.error(request, 'No se ha identificado la base de datos de la empresa.')
+        return redirect('dashboard')
+    if request.method == 'POST':
+        tipo = request.POST.get('tipo')
+        titulo = request.POST.get('titulo')
+        cuerpo = request.POST.get('cuerpo')
+        if not tipo or not titulo or not cuerpo:
+            messages.error(request, 'Todos los campos son obligatorios.')
+            return render(request, 'core/correos/admin_correo_form.html')
+        # Verificar si ya existe una configuración para ese tipo
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM configuracion_correos WHERE tipo = %s", [tipo])
+            if cursor.fetchone()[0] > 0:
+                messages.error(request, f'Ya existe una configuración para el tipo "{tipo}".')
+                return render(request, 'core/correos/admin_correo_form.html')
+            cursor.execute(
+                "INSERT INTO configuracion_correos (tipo, titulo, cuerpo) VALUES (%s, %s, %s)",
+                [tipo, titulo, cuerpo]
+            )
+        messages.success(request, 'Configuración de correo creada correctamente.')
+        return redirect('admin_correos_lista')
+    return render(request, 'core/correos/admin_correo_form.html')
+
+@admin_required
+def admin_correo_editar(request, pk):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        messages.error(request, 'No se ha identificado la base de datos de la empresa.')
+        return redirect('dashboard')
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT id, tipo, titulo, cuerpo FROM configuracion_correos WHERE id = %s", [pk])
+        row = cursor.fetchone()
+        if not row:
+            messages.error(request, 'Configuración no encontrada.')
+            return redirect('admin_correos_lista')
+        if request.method == 'POST':
+            titulo = request.POST.get('titulo')
+            cuerpo = request.POST.get('cuerpo')
+            if not titulo or not cuerpo:
+                messages.error(request, 'Título y cuerpo son obligatorios.')
+                return render(request, 'core/correos/admin_correo_form.html', {'correo': {'id': pk, 'tipo': row[1], 'titulo': titulo, 'cuerpo': cuerpo}})
+            cursor.execute(
+                "UPDATE configuracion_correos SET titulo = %s, cuerpo = %s WHERE id = %s",
+                [titulo, cuerpo, pk]
+            )
+            messages.success(request, 'Configuración actualizada correctamente.')
+            return redirect('admin_correos_lista')
+        correo = {'id': row[0], 'tipo': row[1], 'titulo': row[2], 'cuerpo': row[3]}
+    return render(request, 'core/correos/admin_correo_form.html', {'correo': correo})
+
+@admin_required
+def admin_correo_eliminar(request, pk):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        messages.error(request, 'No se ha identificado la base de datos de la empresa.')
+        return redirect('dashboard')
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("DELETE FROM configuracion_correos WHERE id = %s", [pk])
+    messages.success(request, 'Configuración eliminada correctamente.')
+    return redirect('admin_correos_lista')

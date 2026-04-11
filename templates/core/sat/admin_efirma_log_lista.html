@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Log de eFirmas{% endblock %}
+{% block content_title %}Historial de acciones sobre eFirmas de {{ request.session.empresa_nombre }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Registro de acciones</h3>
+    </div>
+    <div class="card-body">
+        <table id="tablaLogs" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>ID Log</th>
+                    <th>Empresa</th>
+                    <th>Grupo</th>
+                    <th>Acción</th>
+                    <th>Fecha</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.id }}</td>
+                    <td>{{ log.empresa_nombre }}</td>
+                    <td>{{ log.grupo_nombre }}</td>
+                    <td>{{ log.accion }}</td>
+                    <td>{{ log.fecha|date:"d/m/Y H:i:s" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center">No hay registros de log.{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    $(document).ready(function() {
+        var table = $('#tablaLogs');
+        var tbody = table.find('tbody');
+        var hasData = tbody.length && tbody[0].rows.length > 0 && !(tbody[0].rows[0].cells.length === 1 && tbody[0].rows[0].cells[0].getAttribute('colspan') === '5');
+        if (hasData) {
+            table.DataTable({
+                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                pageLength: 10,
+                order: [[4, 'desc']],
+                columnDefs: [{ orderable: false, targets: 3 }]
+            });
+        }
+    });
+</script>
+{% endblock %}

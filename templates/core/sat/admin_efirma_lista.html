@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}eFirmas de la Empresa{% endblock %}
+{% block content_title %}eFirmas (FIEL) de {{ request.session.empresa_nombre }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">eFirmas cargadas</h3>
+        <div class="card-tools">
+            <a href="{% url 'admin_efirma_crear' %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Nueva eFirma
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="tablaEfirmas" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Fecha carga</th>
+                    <th>Vigencia</th>
+                    <th>Estatus</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for efirma in efirmas %}
+                <tr>
+                    <td>{{ efirma.fecha_carga|date:"d/m/Y H:i" }}</td>
+                    <td>{{ efirma.vigencia|date:"d/m/Y"|default:"-" }}</td>
+                    <td>
+                        {% if efirma.estatus == 'pendiente' %}
+                            <span class="badge bg-warning text-dark">Pendiente</span>
+                        {% elif efirma.estatus == 'validado' %}
+                            <span class="badge bg-success">Validado</span>
+                        {% else %}
+                            <span class="badge bg-danger">Rechazado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'admin_efirma_validar' efirma.id %}" class="btn btn-info btn-sm" onclick="return confirm('¿Validar esta FIEL?')">
+                            <i class="bi bi-check-circle"></i> Validar
+                        </a>
+                        <a href="{% url 'admin_efirma_actualizar_vigencia' efirma.id %}" class="btn btn-secondary btn-sm" onclick="return confirm('¿Actualizar vigencia?')">
+                            <i class="bi bi-calendar"></i> Vigencia
+                        </a>
+                        <a href="{% url 'admin_efirma_eliminar' efirma.id %}" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este registro? Se borrarán los archivos.')">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center">No hay eFirmas cargadas.{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    $(document).ready(function() {
+        var table = $('#tablaEfirmas');
+        var tbody = table.find('tbody');
+        var hasData = tbody.length && tbody[0].rows.length > 0 && !(tbody[0].rows[0].cells.length === 1 && tbody[0].rows[0].cells[0].getAttribute('colspan') === '4');
+        if (hasData) {
+            table.DataTable({
+                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                pageLength: 10,
+                order: [[0, 'desc']],
+                columnDefs: [{ orderable: false, targets: 3 }]
+            });
+        }
+    });
+</script>
+{% endblock %}

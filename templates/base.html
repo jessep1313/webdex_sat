@@ -122,17 +122,17 @@
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon bi bi-people"></i>
-                            <p>Usuarios <i class="nav-arrow bi bi-chevron-right"></i></p>
+                            <p>Configuración <i class="nav-arrow bi bi-chevron-right"></i></p>
                         </a>
                         <ul class="nav nav-treeview">
                             <li class="nav-item">
                                 <a href="{% url 'admin_lista' %}" class="nav-link">
-                                    <i class="nav-icon bi bi-circle"></i><p>Admin</p>
+                                    <i class="nav-icon bi bi-circle"></i><p>Usuarios Admin</p>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a href="{% url 'usuarios_lista' %}" class="nav-link">
-                                    <i class="nav-icon bi bi-circle"></i><p>Usuarios</p>
+                                    <i class="nav-icon bi bi-circle"></i><p>Usuarios Empresa</p>
                                 </a>
                             </li>
                         </ul>
@@ -163,12 +163,17 @@
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon bi bi-people"></i>
-                            <p>Usuarios <i class="nav-arrow bi bi-chevron-right"></i></p>
+                            <p>Configuración <i class="nav-arrow bi bi-chevron-right"></i></p>
                         </a>
                         <ul class="nav nav-treeview">
                             <li class="nav-item">
                                 <a href="{% url 'admin_usuarios_lista' %}" class="nav-link">
-                                    <i class="nav-icon bi bi-circle"></i><p>Usuarios</p>
+                                    <i class="nav-icon bi bi-circle"></i><p>Usuarios Empresa</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'admin_correos_lista' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Configuración de correos</p>
                                 </a>
                             </li>
                         </ul>

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}{% if correo %}Editar{% else %}Nueva{% endif %} Configuración de Correo{% endblock %}
+{% block content_title %}{% if correo %}Editar{% else %}Nueva{% endif %} Plantilla{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Datos de la plantilla</h3>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="tipo" class="form-label">Tipo</label>
+                {% if correo %}
+                    <input type="text" class="form-control" value="{% if correo.tipo == 'opinion' %}Opinión de cumplimiento{% else %}Constancia Situación Fiscal{% endif %}" readonly disabled>
+                    <input type="hidden" name="tipo" value="{{ correo.tipo }}">
+                {% else %}
+                    <select name="tipo" id="tipo" class="form-select" required>
+                        <option value="">Seleccione un tipo</option>
+                        <option value="opinion">Opinión de cumplimiento</option>
+                        <option value="constancia">Constancia Situación Fiscal</option>
+                    </select>
+                {% endif %}
+            </div>
+            <div class="mb-3">
+                <label for="titulo" class="form-label">Título del correo</label>
+                <input type="text" name="titulo" id="titulo" class="form-control" value="{{ correo.titulo|default:'' }}" required>
+            </div>
+            <div class="mb-3">
+                <label for="cuerpo" class="form-label">Cuerpo del correo</label>
+                <textarea name="cuerpo" id="cuerpo" class="form-control" rows="10" required>{{ correo.cuerpo|default:'' }}</textarea>
+                <div class="mt-2 p-2 bg-light border rounded">
+                    <strong>Variables disponibles:</strong>
+                    <ul class="mb-2">
+                        <li><code>{% verbatim %}{{ nombre }}{% endverbatim %}</code> - Se reemplazará por el nombre del cliente.</li>
+                        <li><code>{% verbatim %}{{ rfc }}{% endverbatim %}</code> - Se reemplazará por el RFC del cliente.</li>
+                    </ul>
+                    <hr class="my-2">
+                    <strong>Ejemplo de plantilla (copia y modifica):</strong>
+                    <pre class="bg-white p-2 border rounded" style="font-size: 0.9rem;">{% verbatim %}Estimado(a) {{ nombre }} (RFC: {{ rfc }}):
+
+Le informamos que su opinión de cumplimiento se encuentra disponible en nuestro sistema.
+
+Atentamente,
+Su equipo de atención.{% endverbatim %}</pre>
+                    <small class="text-muted">Escribe el cuerpo del correo usando las variables de la lista. Puedes hacer clic en los botones para insertarlas en el cursor.</small>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <a href="{% url 'admin_correos_lista' %}" class="btn btn-secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function insertarVariable(variable) {
+        const textarea = document.getElementById('cuerpo');
+        const inicio = textarea.selectionStart;
+        const fin = textarea.selectionEnd;
+        const texto = textarea.value;
+        const variableTexto = variable === 'nombre' ? '{{ nombre }}' : '{{ rfc }}';
+        const nuevoTexto = texto.substring(0, inicio) + variableTexto + texto.substring(fin);
+        textarea.value = nuevoTexto;
+        textarea.focus();
+        textarea.setSelectionRange(inicio + variableTexto.length, inicio + variableTexto.length);
+    }
+</script>
+{% endblock %}

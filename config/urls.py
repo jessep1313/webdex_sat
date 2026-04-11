@@ -79,5 +79,8 @@ urlpatterns = [
     path('panel-admin/efirma/eliminar/<int:pk>/', core_views.admin_efirma_eliminar, name='admin_efirma_eliminar'),
     path('panel-admin/efirma/log/', core_views.admin_efirma_log_lista, name='admin_efirma_log_lista'),
 
-
+    path('panel-admin/correos/', core_views.admin_correos_lista, name='admin_correos_lista'),
+path('panel-admin/correos/crear/', core_views.admin_correo_crear, name='admin_correo_crear'),
+path('panel-admin/correos/editar/<int:pk>/', core_views.admin_correo_editar, name='admin_correo_editar'),
+path('panel-admin/correos/eliminar/<int:pk>/', core_views.admin_correo_eliminar, name='admin_correo_eliminar'),
 ]
