@@ -15,6 +15,25 @@
     <!-- AdminLTE CSS (local) -->
     <link rel="stylesheet" href="{% static 'adminlte/dist/css/adminlte.css' %}">
 
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        /* Cambiar color de fondo del sidebar a #005EC4 */
+        .app-sidebar.bg-body-secondary {
+            background-color: #005EC4 !important;
+        }
+        /* Opcional: si quieres cambiar también el color de la barra de scroll o el texto para contraste */
+        .app-sidebar .sidebar-wrapper {
+            background-color: #005EC4 !important;
+        }
+        /* Ajustar color de texto en el sidebar para que sea legible (blanco) */
+        .app-sidebar .nav-link p,
+        .app-sidebar .nav-link i,
+        .app-sidebar .brand-text,
+        .app-sidebar .nav-treeview .nav-link p {
+            color: #ffffff !important;
+        }
+    </style>
+
     {% block extra_head %}{% endblock %}
 </head>
 <body class="layout-fixed sidebar-expand-lg bg-body-tertiary">
@@ -57,9 +76,12 @@
     <!-- ==================== SIDEBAR (MENÚ LATERAL) ==================== -->
     <aside class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
         <div class="sidebar-brand">
-            <a href="{% url 'dashboard' %}" class="brand-link">
-                <span class="brand-text fw-light">Plataforma Fiscal</span>
-            </a>
+                <img src="{% static 'adminlte/dist/assets/img/logo.png' %}" 
+                    alt="Logo" 
+                    class="brand-image img-circle elevation-3" 
+                    style="opacity: .8; width: 90%; height: auto;">
+
+        
         </div>
         <div class="sidebar-wrapper">
             <nav class="mt-2">
@@ -133,6 +155,41 @@
                             </li>
                         </ul>
                         
+                    </li>
+                    {% endif %}
+
+                    <!-- Menú para Administrador (A) -->
+                    {% if request.session.user_type == 'A' %}
+                    <li class="nav-item has-treeview">
+                        <a href="#" class="nav-link">
+                            <i class="nav-icon bi bi-people"></i>
+                            <p>Usuarios <i class="nav-arrow bi bi-chevron-right"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            <li class="nav-item">
+                                <a href="{% url 'admin_usuarios_lista' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Usuarios</p>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="nav-item has-treeview">
+                        <a href="#" class="nav-link">
+                            <i class="nav-icon bi bi-file-text"></i>
+                            <p>SAT <i class="nav-arrow bi bi-chevron-right"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            <li class="nav-item">
+                                <a href="{% url 'admin_efirma_lista' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Efirma</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'admin_efirma_log_lista' %}" class="nav-link">
+                                    <i class="nav-icon bi bi-circle"></i><p>Efirma Log</p>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     {% endif %}
                 </ul>

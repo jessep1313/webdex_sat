@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.contrib.auth.hashers import check_password, make_password
 from empresas.models import SuperAdmin, Admin, UsuarioCentral
 from empresas.models import Grupo, Empresa, Sucursal, Admin, UsuarioCentral, EFirma
-from .decorators import superadmin_required
+from .decorators import superadmin_required, admin_required, usuario_required
 from django.conf import settings
 import copy
 import re
@@ -13,7 +13,7 @@ from django.db import connections
 
 
 
-def login_view(request):
+def login_view_2(request):
     if request.method == 'POST':
         email = request.POST.get('email')
         password = request.POST.get('password')
@@ -61,6 +61,86 @@ def login_view(request):
                 # Opcional: guardar empresa_id, sucursal_id
                 request.session['empresa_id'] = user.empresa_id if user.empresa else None
                 request.session['sucursal_id'] = user.sucursal_id if user.sucursal else None
+                return redirect('dashboard')
+            else:
+                messages.error(request, 'Contraseña incorrecta')
+                return render(request, 'core/login.html')
+        except UsuarioCentral.DoesNotExist:
+            pass
+
+        # Si no se encontró en ninguna tabla
+        messages.error(request, 'Usuario no encontrado o inactivo')
+        return render(request, 'core/login.html')
+
+    return render(request, 'core/login.html')
+
+##funcion para traernos el rfc 
+def login_view(request):
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+
+        # 1. Buscar en superadmins
+        try:
+            user = SuperAdmin.objects.using('default').get(email=email, activo=True)
+            if check_password(password, user.password):
+                request.session['user_id'] = user.id
+                request.session['user_nombre'] = user.nombre
+                request.session['user_email'] = user.email
+                request.session['user_type'] = 'SA'
+                return redirect('dashboard')
+            else:
+                messages.error(request, 'Contraseña incorrecta')
+                return render(request, 'core/login.html')
+        except SuperAdmin.DoesNotExist:
+            pass
+
+        # 2. Buscar en admin
+        try:
+            user = Admin.objects.using('default').get(email=email, activo=True)
+            if check_password(password, user.password):
+                request.session['user_id'] = user.id
+                request.session['user_nombre'] = user.nombre
+                request.session['user_email'] = user.email
+                request.session['user_type'] = 'A'
+                # Obtener datos de la empresa asociada
+                if user.empresa_id:
+                    empresa = Empresa.objects.using('default').get(pk=user.empresa_id)
+                    request.session['empresa_id'] = empresa.id
+                    request.session['empresa_nombre'] = empresa.nombre
+                    request.session['empresa_rfc'] = empresa.rfc
+                    request.session['empresa_db_name'] = empresa.db_name
+                    if empresa.grupo:
+                        request.session['grupo_id'] = empresa.grupo.id
+                        request.session['grupo_nombre'] = empresa.grupo.nombre
+                return redirect('dashboard')
+            else:
+                messages.error(request, 'Contraseña incorrecta')
+                return render(request, 'core/login.html')
+        except Admin.DoesNotExist:
+            pass
+
+        # 3. Buscar en usuarios
+        try:
+            user = UsuarioCentral.objects.using('default').get(email=email, activo=True)
+            if check_password(password, user.password):
+                request.session['user_id'] = user.id
+                request.session['user_nombre'] = user.nombre
+                request.session['user_email'] = user.email
+                request.session['user_type'] = 'US'
+                if user.empresa_id:
+                    empresa = Empresa.objects.using('default').get(pk=user.empresa_id)
+                    request.session['empresa_id'] = empresa.id
+                    request.session['empresa_nombre'] = empresa.nombre
+                    request.session['empresa_rfc'] = empresa.rfc
+                    request.session['empresa_db_name'] = empresa.db_name
+                    if empresa.grupo:
+                        request.session['grupo_id'] = empresa.grupo.id
+                        request.session['grupo_nombre'] = empresa.grupo.nombre
+                if user.sucursal_id:
+                    sucursal = Sucursal.objects.using('default').get(pk=user.sucursal_id)
+                    request.session['sucursal_id'] = sucursal.id
+                    request.session['sucursal_nombre'] = sucursal.nombre
                 return redirect('dashboard')
             else:
                 messages.error(request, 'Contraseña incorrecta')
@@ -701,3 +781,276 @@ def efirma_log_lista(request):
             log.empresa_nombre = 'Eliminada'
             log.grupo_nombre = '-'
     return render(request, 'core/sat/efirma_log_lista.html', {'logs': logs})
+
+
+from django.contrib.auth.hashers import make_password
+
+@admin_required
+def admin_usuarios_lista(request):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    # Filtrar usuarios normales (tipo 'US') que pertenezcan a esta empresa
+    usuarios = UsuarioCentral.objects.using('default').filter(empresa_id=empresa_id, activo=True).select_related('sucursal')
+    return render(request, 'core/usuarios/admin_usuarios_lista.html', {'usuarios': usuarios})
+
+@admin_required
+def admin_usuario_crear(request):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    # Obtener sucursales de la empresa
+    sucursales = Sucursal.objects.using('default').filter(empresa_id=empresa_id, activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        tipo = request.POST.get('tipo')
+        sucursal_id = request.POST.get('sucursal') or None
+        activo = request.POST.get('activo') == 'on'
+
+        if not nombre or not email or not password or not tipo:
+            messages.error(request, 'Nombre, email, contraseña y tipo son obligatorios.')
+            return render(request, 'core/usuarios/admin_usuario_form.html', {'sucursales': sucursales})
+        if password != password2:
+            messages.error(request, 'Las contraseñas no coinciden.')
+            return render(request, 'core/usuarios/admin_usuario_form.html', {'sucursales': sucursales})
+        if UsuarioCentral.objects.using('default').filter(email=email).exists():
+            messages.error(request, 'Ya existe un usuario con ese email.')
+            return render(request, 'core/usuarios/admin_usuario_form.html', {'sucursales': sucursales})
+
+        usuario = UsuarioCentral(
+            nombre=nombre,
+            email=email,
+            password=make_password(password),
+            tipo=tipo,
+            empresa_id=empresa_id,
+            sucursal_id=sucursal_id,
+            activo=activo
+        )
+        usuario.save(using='default')
+        messages.success(request, 'Usuario creado correctamente.')
+        return redirect('admin_usuarios_lista')
+    return render(request, 'core/usuarios/admin_usuario_form.html', {'sucursales': sucursales})
+
+@admin_required
+def admin_usuario_editar(request, pk):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    usuario = get_object_or_404(UsuarioCentral, pk=pk, empresa_id=empresa_id)
+    sucursales = Sucursal.objects.using('default').filter(empresa_id=empresa_id, activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        tipo = request.POST.get('tipo')
+        sucursal_id = request.POST.get('sucursal') or None
+        activo = request.POST.get('activo') == 'on'
+
+        if not nombre or not email or not tipo:
+            messages.error(request, 'Nombre, email y tipo son obligatorios.')
+            return render(request, 'core/usuarios/admin_usuario_form.html', {'usuario': usuario, 'sucursales': sucursales})
+        if UsuarioCentral.objects.using('default').filter(email=email).exclude(pk=pk).exists():
+            messages.error(request, 'Ya existe otro usuario con ese email.')
+            return render(request, 'core/usuarios/admin_usuario_form.html', {'usuario': usuario, 'sucursales': sucursales})
+
+        usuario.nombre = nombre
+        usuario.email = email
+        usuario.tipo = tipo
+        usuario.sucursal_id = sucursal_id
+        usuario.activo = activo
+        if password:
+            if password != password2:
+                messages.error(request, 'Las contraseñas no coinciden.')
+                return render(request, 'core/usuarios/admin_usuario_form.html', {'usuario': usuario, 'sucursales': sucursales})
+            usuario.password = make_password(password)
+        usuario.save(using='default')
+        messages.success(request, 'Usuario actualizado correctamente.')
+        return redirect('admin_usuarios_lista')
+    return render(request, 'core/usuarios/admin_usuario_form.html', {'usuario': usuario, 'sucursales': sucursales})
+
+@admin_required
+def admin_usuario_eliminar(request, pk):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    usuario = get_object_or_404(UsuarioCentral, pk=pk, empresa_id=empresa_id)
+    usuario.activo = False
+    usuario.save(using='default')
+    messages.success(request, f'Usuario "{usuario.nombre}" desactivado correctamente.')
+    return redirect('admin_usuarios_lista')
+
+# ========== EFIRMAS PARA ADMINISTRADOR ==========
+@admin_required
+def admin_efirma_lista(request):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    empresa = Empresa.objects.using('default').get(pk=empresa_id)
+    efirmas = EFirma.objects.using('default').filter(empresa=empresa.nombre).order_by('-fecha_carga')
+    return render(request, 'core/sat/admin_efirma_lista.html', {'efirmas': efirmas, 'empresa': empresa})
+
+@admin_required
+def admin_efirma_crear(request):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    empresa = Empresa.objects.using('default').get(pk=empresa_id)
+    if request.method == 'POST':
+        archivo_cer = request.FILES.get('archivo_cer')
+        archivo_key = request.FILES.get('archivo_key')
+        password = request.POST.get('password')
+        if not archivo_cer or not archivo_key or not password:
+            messages.error(request, 'Todos los campos son obligatorios.')
+            return render(request, 'core/sat/admin_efirma_form.html', {'empresa': empresa})
+        # Validar extensiones
+        if not archivo_cer.name.endswith('.cer') or not archivo_key.name.endswith('.key'):
+            messages.error(request, 'Los archivos deben tener extensión .cer y .key.')
+            return render(request, 'core/sat/admin_efirma_form.html', {'empresa': empresa})
+
+        rfc_empresa = empresa.rfc
+        upload_path = f"efirmas/{rfc_empresa}/"
+        cer_name = f"{rfc_empresa}_certificado.cer"
+        key_name = f"{rfc_empresa}_llave.key"
+        cer_path = default_storage.save(upload_path + cer_name, ContentFile(archivo_cer.read()))
+        key_path = default_storage.save(upload_path + key_name, ContentFile(archivo_key.read()))
+        password_cifrada = dumps(password)
+        grupo_nombre = empresa.grupo.nombre if empresa.grupo else 'Sin grupo'
+        efirma = EFirma(
+            archivo_cer=cer_path,
+            archivo_key=key_path,
+            password=password_cifrada,
+            estatus='pendiente',
+            grupo=grupo_nombre,
+            empresa=empresa.nombre
+        )
+        efirma.save(using='default')
+        usuario = request.session.get('user_nombre', 'Desconocido')
+        EFirmaLog.objects.using('default').create(efirma_id=efirma.id, accion=f"Creada por {usuario}")
+        messages.success(request, 'FIEL cargada correctamente.')
+        return redirect('admin_efirma_lista')
+    return render(request, 'core/sat/admin_efirma_form.html', {'empresa': empresa})
+
+@admin_required
+def admin_efirma_validar(request, pk):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    empresa = Empresa.objects.using('default').get(pk=empresa_id)
+    efirma = get_object_or_404(EFirma, pk=pk, empresa=empresa.nombre)
+    try:
+        password = loads(efirma.password)
+    except Exception:
+        messages.error(request, 'Error al descifrar la contraseña.')
+        return redirect('admin_efirma_lista')
+    cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+    key_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_key)
+    if not os.path.exists(cer_path) or not os.path.exists(key_path):
+        messages.error(request, 'Los archivos de la FIEL no existen en el servidor.')
+        efirma.estatus = 'rechazado'
+        efirma.save(using='default')
+        EFirmaLog.objects.using('default').create(efirma_id=efirma.id, accion=f"Validación fallida (archivos no encontrados) por {request.session.get('user_nombre')}")
+        return redirect('admin_efirma_lista')
+    try:
+        with open(cer_path, 'rb') as cer_file, open(key_path, 'rb') as key_file:
+            signer = Signer.load(
+                certificate=cer_file.read(),
+                key=key_file.read(),
+                password=password
+            )
+        efirma.estatus = 'validado'
+        # Actualizar vigencia si se puede
+        with open(cer_path, 'rb') as cer_file:
+            cert_data = cer_file.read()
+            try:
+                cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+            except:
+                cert = x509.load_der_x509_certificate(cert_data, default_backend())
+            efirma.vigencia = cert.not_valid_after.date()
+        efirma.save(using='default')
+        EFirmaLog.objects.using('default').create(efirma_id=efirma.id, accion=f"Validada (vigencia hasta {efirma.vigencia}) por {request.session.get('user_nombre')}")
+        messages.success(request, f'FIEL válida. RFC: {signer.rfc}, Nombre: {signer.legal_name}')
+    except Exception as e:
+        efirma.estatus = 'rechazado'
+        efirma.save(using='default')
+        EFirmaLog.objects.using('default').create(efirma_id=efirma.id, accion=f"Validación fallida: {str(e)} por {request.session.get('user_nombre')}")
+        messages.error(request, f'FIEL inválida: {str(e)}')
+    return redirect('admin_efirma_lista')
+
+@admin_required
+def admin_efirma_actualizar_vigencia(request, pk):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    empresa = Empresa.objects.using('default').get(pk=empresa_id)
+    efirma = get_object_or_404(EFirma, pk=pk, empresa=empresa.nombre)
+    cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+    if not os.path.exists(cer_path):
+        messages.error(request, 'El archivo .cer no existe.')
+        return redirect('admin_efirma_lista')
+    try:
+        with open(cer_path, 'rb') as cer_file:
+            cert_data = cer_file.read()
+            try:
+                cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+            except:
+                cert = x509.load_der_x509_certificate(cert_data, default_backend())
+            efirma.vigencia = cert.not_valid_after.date()
+        efirma.save(using='default')
+        EFirmaLog.objects.using('default').create(efirma_id=efirma.id, accion=f"Vigencia actualizada: {efirma.vigencia} por {request.session.get('user_nombre')}")
+        messages.success(request, 'Vigencia actualizada correctamente.')
+    except Exception as e:
+        messages.error(request, f'Error al leer la vigencia: {str(e)}')
+    return redirect('admin_efirma_lista')
+
+@admin_required
+def admin_efirma_eliminar(request, pk):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    empresa = Empresa.objects.using('default').get(pk=empresa_id)
+    efirma = get_object_or_404(EFirma, pk=pk, empresa=empresa.nombre)
+    cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+    key_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_key)
+    if os.path.exists(cer_path):
+        os.remove(cer_path)
+    if os.path.exists(key_path):
+        os.remove(key_path)
+    # Guardar log antes de eliminar
+    EFirmaLog.objects.using('default').create(efirma_id=efirma.id, accion=f"Eliminada por {request.session.get('user_nombre')}")
+    efirma.delete(using='default')
+    messages.success(request, 'Registro de FIEL eliminado correctamente.')
+    return redirect('admin_efirma_lista')
+
+@admin_required
+def admin_efirma_log_lista(request):
+    empresa_id = request.session.get('empresa_id')
+    if not empresa_id:
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+    empresa = Empresa.objects.using('default').get(pk=empresa_id)
+    # Obtener IDs de eFirmas de la empresa
+    efirmas_ids = EFirma.objects.using('default').filter(empresa=empresa.nombre).values_list('id', flat=True)
+    logs = EFirmaLog.objects.using('default').filter(efirma_id__in=efirmas_ids).order_by('-fecha')
+    # Añadir nombre de empresa y grupo para mostrar (opcional)
+    for log in logs:
+        try:
+            ef = EFirma.objects.using('default').get(pk=log.efirma_id)
+            log.empresa_nombre = ef.empresa
+            log.grupo_nombre = ef.grupo
+        except EFirma.DoesNotExist:
+            log.empresa_nombre = empresa.nombre
+            log.grupo_nombre = '-'
+    return render(request, 'core/sat/admin_efirma_log_lista.html', {'logs': logs})

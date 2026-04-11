@@ -63,8 +63,21 @@ urlpatterns = [
     path('efirma/eliminar/<int:pk>/', core_views.efirma_eliminar, name='efirma_eliminar'),
 
     path('efirma/actualizar-vigencia/<int:pk>/', core_views.efirma_actualizar_vigencia, name='efirma_actualizar_vigencia'),
-
     path('efirma/log/', core_views.efirma_log_lista, name='efirma_log_lista'),
+
+    # Usuarios normales para administrador
+    # ========== RUTAS PARA ADMINISTRADOR (con prefijo seguro) ==========
+    path('panel-admin/usuarios/', core_views.admin_usuarios_lista, name='admin_usuarios_lista'),
+    path('panel-admin/usuarios/crear/', core_views.admin_usuario_crear, name='admin_usuario_crear'),
+    path('panel-admin/usuarios/editar/<int:pk>/', core_views.admin_usuario_editar, name='admin_usuario_editar'),
+    path('panel-admin/usuarios/eliminar/<int:pk>/', core_views.admin_usuario_eliminar, name='admin_usuario_eliminar'),
+    
+    path('panel-admin/efirma/', core_views.admin_efirma_lista, name='admin_efirma_lista'),
+    path('panel-admin/efirma/crear/', core_views.admin_efirma_crear, name='admin_efirma_crear'),
+    path('panel-admin/efirma/validar/<int:pk>/', core_views.admin_efirma_validar, name='admin_efirma_validar'),
+    path('panel-admin/efirma/actualizar-vigencia/<int:pk>/', core_views.admin_efirma_actualizar_vigencia, name='admin_efirma_actualizar_vigencia'),
+    path('panel-admin/efirma/eliminar/<int:pk>/', core_views.admin_efirma_eliminar, name='admin_efirma_eliminar'),
+    path('panel-admin/efirma/log/', core_views.admin_efirma_log_lista, name='admin_efirma_log_lista'),
 
 
 ]
