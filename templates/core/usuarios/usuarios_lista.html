@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Usuarios{% endblock %}
+{% block content_title %}Listado de Usuarios{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Usuarios</h3>
+        <div class="card-tools">
+            <a href="{% url 'usuario_crear' %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Nuevo Usuario
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="tablaUsuarios" class="table table-bordered table-striped" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Tipo</th>
+                    <th>Empresa</th>
+                    <th>Sucursal</th>
+                    <th>Grupo</th>
+                    <th>Activo</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                <tr>
+                    <td>{{ usuario.nombre }}</td>
+                    <td>{{ usuario.email }}</td>
+                    <td>{{ usuario.tipo }}</td>
+                    <td>{{ usuario.empresa.nombre|default:"-" }}</td>
+                    <td>{{ usuario.sucursal.nombre|default:"-" }}</td>
+                    <td>{{ usuario.grupo.nombre|default:"-" }}</td>
+                    <td>{% if usuario.activo %}Sí{% else %}No{% endif %}</td>
+                    <td>
+                        <a href="{% url 'usuario_editar' usuario.id %}" class="btn btn-info btn-sm">
+                            <i class="bi bi-pencil"></i> Editar
+                        </a>
+                        {% if usuario.activo %}
+                        <a href="{% url 'usuario_eliminar' usuario.id %}" class="btn btn-danger btn-sm" onclick="return confirm('¿Desactivar este usuario?')">
+                            <i class="bi bi-trash"></i> Desactivar
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center">No hay usuarios registrados.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    $(document).ready(function() {
+        var table = $('#tablaUsuarios');
+        var tbody = table.find('tbody');
+        var hasData = false;
+        if (tbody.length && tbody[0].rows.length > 0) {
+            var firstRowCells = tbody[0].rows[0].cells;
+            if (firstRowCells.length === 1 && firstRowCells[0].getAttribute('colspan') === '8') {
+                hasData = false;
+            } else {
+                hasData = true;
+            }
+        }
+        if (hasData) {
+            if ($.fn.DataTable.isDataTable(table)) {
+                table.DataTable().destroy();
+            }
+            table.DataTable({
+                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                pageLength: 10,
+                order: [[0, 'asc']],
+                columnDefs: [{ orderable: false, targets: 7 }]
+            });
+        }
+    });
+</script>
+{% endblock %}

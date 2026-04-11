@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, make_password
 from empresas.models import SuperAdmin, Admin, UsuarioCentral
 from empresas.models import Grupo, Empresa, Sucursal, Admin, UsuarioCentral, EFirma
 from .decorators import superadmin_required
@@ -9,6 +9,7 @@ import copy
 import re
 from .utils import crear_tablas_empresa
 from django.db import connections
+
 
 
 
@@ -259,14 +260,156 @@ def empresa_eliminar(request, pk):
 
 
 
+# ========== SUCURSALES ==========
+@superadmin_required
 def sucursales_lista(request):
-    sucursales = Sucursal.objects.using('default').all()
+    sucursales = Sucursal.objects.using('default').select_related('empresa').all()
     return render(request, 'core/catalogos/sucursales_lista.html', {'sucursales': sucursales})
 
-# Vistas para Usuarios
+@superadmin_required
+def sucursal_crear(request):
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        codigo = request.POST.get('codigo')
+        empresa_id = request.POST.get('empresa')
+        activo = request.POST.get('activo') == 'on'
+
+        if not nombre or not codigo or not empresa_id:
+            messages.error(request, 'Nombre, código y empresa son obligatorios.')
+            return render(request, 'core/catalogos/sucursal_form.html', {'empresas': empresas})
+
+        sucursal = Sucursal(
+            nombre=nombre,
+            codigo=codigo,
+            empresa_id=empresa_id,
+            activo=activo
+        )
+        sucursal.save(using='default')
+        messages.success(request, 'Sucursal creada correctamente.')
+        return redirect('sucursales_lista')
+    return render(request, 'core/catalogos/sucursal_form.html', {'empresas': empresas})
+
+@superadmin_required
+def sucursal_editar(request, pk):
+    sucursal = get_object_or_404(Sucursal, pk=pk)
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        sucursal.nombre = request.POST.get('nombre')
+        sucursal.codigo = request.POST.get('codigo')
+        sucursal.empresa_id = request.POST.get('empresa')
+        sucursal.activo = request.POST.get('activo') == 'on'
+        sucursal.save(using='default')
+        messages.success(request, 'Sucursal actualizada correctamente.')
+        return redirect('sucursales_lista')
+    return render(request, 'core/catalogos/sucursal_form.html', {'sucursal': sucursal, 'empresas': empresas})
+
+@superadmin_required
+def sucursal_eliminar(request, pk):
+    sucursal = get_object_or_404(Sucursal, pk=pk)
+    # Eliminación lógica
+    sucursal.activo = False
+    sucursal.save(using='default')
+    messages.success(request, f'Sucursal "{sucursal.nombre}" desactivada correctamente.')
+    return redirect('sucursales_lista')
+
+
+
+# ========== ADMINISTRADORES ==========
+@superadmin_required
 def admin_lista(request):
-    admins = Admin.objects.using('default').all()
+    admins = Admin.objects.using('default').select_related('empresa', 'grupo').all()
     return render(request, 'core/usuarios/admin_lista.html', {'admins': admins})
+
+@superadmin_required
+def admin_crear(request):
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        empresa_id = request.POST.get('empresa')
+        activo = request.POST.get('activo') == 'on'
+
+        if not nombre or not email or not password or not empresa_id:
+            messages.error(request, 'Nombre, email, contraseña y empresa son obligatorios.')
+            return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
+        if password != password2:
+            messages.error(request, 'Las contraseñas no coinciden.')
+            return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
+        if Admin.objects.using('default').filter(email=email).exists():
+            messages.error(request, 'Ya existe un administrador con ese email.')
+            return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
+
+        # Obtener la empresa para conocer su grupo
+        empresa = Empresa.objects.using('default').get(pk=empresa_id)
+        grupo_id = empresa.grupo_id  # puede ser None si la empresa no tiene grupo, pero normalmente sí
+
+        admin = Admin(
+            nombre=nombre,
+            email=email,
+            password=make_password(password),
+            grupo_id=grupo_id,
+            empresa_id=empresa_id,
+            activo=activo
+        )
+        admin.save(using='default')
+        messages.success(request, 'Administrador creado correctamente.')
+        return redirect('admin_lista')
+    return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
+
+@superadmin_required
+def admin_editar(request, pk):
+    admin = get_object_or_404(Admin, pk=pk)
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        empresa_id = request.POST.get('empresa')
+        activo = request.POST.get('activo') == 'on'
+
+        if not nombre or not email or not empresa_id:
+            messages.error(request, 'Nombre, email y empresa son obligatorios.')
+            return render(request, 'core/usuarios/admin_form.html', {'admin': admin, 'empresas': empresas})
+        if Admin.objects.using('default').filter(email=email).exclude(pk=pk).exists():
+            messages.error(request, 'Ya existe otro administrador con ese email.')
+            return render(request, 'core/usuarios/admin_form.html', {'admin': admin, 'empresas': empresas})
+
+        # Actualizar datos
+        admin.nombre = nombre
+        admin.email = email
+        admin.empresa_id = empresa_id
+        admin.activo = activo
+
+        # Actualizar grupo según la nueva empresa (si cambió)
+        empresa = Empresa.objects.using('default').get(pk=empresa_id)
+        admin.grupo_id = empresa.grupo_id
+
+        # Si se proporciona nueva contraseña
+        if password:
+            if password != password2:
+                messages.error(request, 'Las contraseñas no coinciden.')
+                return render(request, 'core/usuarios/admin_form.html', {'admin': admin, 'empresas': empresas})
+            admin.password = make_password(password)
+
+        admin.save(using='default')
+        messages.success(request, 'Administrador actualizado correctamente.')
+        return redirect('admin_lista')
+    return render(request, 'core/usuarios/admin_form.html', {'admin': admin, 'empresas': empresas})
+
+@superadmin_required
+def admin_eliminar(request, pk):
+    admin = get_object_or_404(Admin, pk=pk)
+    admin.activo = False
+    admin.save(using='default')
+    messages.success(request, f'Administrador "{admin.nombre}" desactivado correctamente.')
+    return redirect('admin_lista')
+
+
+
 
 def usuarios_lista(request):
     usuarios = UsuarioCentral.objects.using('default').all()
@@ -276,3 +419,116 @@ def usuarios_lista(request):
 def efirma_lista(request):
     efirmas = EFirma.objects.using('default').all()
     return render(request, 'core/sat/efirma_lista.html', {'efirmas': efirmas})
+
+
+
+# ========== USUARIOS NORMALES ==========
+@superadmin_required
+def usuarios_lista(request):
+    usuarios = UsuarioCentral.objects.using('default').select_related('empresa', 'sucursal').all()
+    return render(request, 'core/usuarios/usuarios_lista.html', {'usuarios': usuarios})
+
+@superadmin_required
+def usuario_crear(request):
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        tipo = request.POST.get('tipo')
+        empresa_id = request.POST.get('empresa')
+        sucursal_id = request.POST.get('sucursal') or None
+        activo = request.POST.get('activo') == 'on'
+
+        if not nombre or not email or not password or not tipo or not empresa_id:
+            messages.error(request, 'Nombre, email, contraseña, tipo y empresa son obligatorios.')
+            return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
+        if password != password2:
+            messages.error(request, 'Las contraseñas no coinciden.')
+            return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
+        if UsuarioCentral.objects.using('default').filter(email=email).exists():
+            messages.error(request, 'Ya existe un usuario con ese email.')
+            return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
+
+        # Obtener la empresa para conocer su grupo
+        empresa = Empresa.objects.using('default').get(pk=empresa_id)
+        grupo_id = empresa.grupo_id  # puede ser None
+
+        usuario = UsuarioCentral(
+            nombre=nombre,
+            email=email,
+            password=make_password(password),
+            tipo=tipo,
+            empresa_id=empresa_id,
+            sucursal_id=sucursal_id,
+            grupo_id=grupo_id,
+            activo=activo
+        )
+        usuario.save(using='default')
+        messages.success(request, 'Usuario creado correctamente.')
+        return redirect('usuarios_lista')
+    return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
+
+@superadmin_required
+def usuario_editar(request, pk):
+    usuario = get_object_or_404(UsuarioCentral, pk=pk)
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        tipo = request.POST.get('tipo')
+        empresa_id = request.POST.get('empresa')
+        sucursal_id = request.POST.get('sucursal') or None
+        activo = request.POST.get('activo') == 'on'
+
+        if not nombre or not email or not tipo or not empresa_id:
+            messages.error(request, 'Nombre, email, tipo y empresa son obligatorios.')
+            return render(request, 'core/usuarios/usuario_form.html', {'usuario': usuario, 'empresas': empresas})
+        if UsuarioCentral.objects.using('default').filter(email=email).exclude(pk=pk).exists():
+            messages.error(request, 'Ya existe otro usuario con ese email.')
+            return render(request, 'core/usuarios/usuario_form.html', {'usuario': usuario, 'empresas': empresas})
+
+        # Actualizar grupo según la nueva empresa (si cambió)
+        empresa = Empresa.objects.using('default').get(pk=empresa_id)
+        grupo_id = empresa.grupo_id
+
+        usuario.nombre = nombre
+        usuario.email = email
+        usuario.tipo = tipo
+        usuario.empresa_id = empresa_id
+        usuario.sucursal_id = sucursal_id
+        usuario.grupo_id = grupo_id
+        usuario.activo = activo
+
+        if password:
+            if password != password2:
+                messages.error(request, 'Las contraseñas no coinciden.')
+                return render(request, 'core/usuarios/usuario_form.html', {'usuario': usuario, 'empresas': empresas})
+            usuario.password = make_password(password)
+
+        usuario.save(using='default')
+        messages.success(request, 'Usuario actualizado correctamente.')
+        return redirect('usuarios_lista')
+    return render(request, 'core/usuarios/usuario_form.html', {'usuario': usuario, 'empresas': empresas})
+
+@superadmin_required
+def usuario_eliminar(request, pk):
+    usuario = get_object_or_404(UsuarioCentral, pk=pk)
+    usuario.activo = False
+    usuario.save(using='default')
+    messages.success(request, f'Usuario "{usuario.nombre}" desactivado correctamente.')
+    return redirect('usuarios_lista')
+
+
+from django.http import JsonResponse
+from empresas.models import Sucursal
+
+def api_sucursales(request):
+    empresa_id = request.GET.get('empresa_id')
+    if not empresa_id:
+        return JsonResponse([], safe=False)
+    sucursales = Sucursal.objects.using('default').filter(empresa_id=empresa_id, activo=True).values('id', 'nombre')
+    return JsonResponse(list(sucursales), safe=False)

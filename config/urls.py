@@ -34,7 +34,14 @@ urlpatterns = [
     # ... otras rutas (empresas, sucursales, etc.)
     path('empresas/', core_views.empresas_lista, name='empresas_lista'),
     path('sucursales/', core_views.sucursales_lista, name='sucursales_lista'),
-    path('admin/', core_views.admin_lista, name='admin_lista'),
+    path('sucursales/crear/', core_views.sucursal_crear, name='sucursal_crear'),
+    path('sucursales/editar/<int:pk>/', core_views.sucursal_editar, name='sucursal_editar'),
+    path('sucursales/eliminar/<int:pk>/', core_views.sucursal_eliminar, name='sucursal_eliminar'),
+   # Usuarios - Administradores (cambiamos de 'admin/' a 'administradores/')
+    path('administradores/', core_views.admin_lista, name='admin_lista'),
+    path('administradores/crear/', core_views.admin_crear, name='admin_crear'),
+    path('administradores/editar/<int:pk>/', core_views.admin_editar, name='admin_editar'),
+    path('administradores/eliminar/<int:pk>/', core_views.admin_eliminar, name='admin_eliminar'),
     path('usuarios/', core_views.usuarios_lista, name='usuarios_lista'),
     path('efirma/', core_views.efirma_lista, name='efirma_lista'),
     # ... otras rutas (login, dashboard, logout, grupos...)
@@ -42,4 +49,12 @@ urlpatterns = [
     path('empresas/crear/', core_views.empresa_crear, name='empresa_crear'),
     path('empresas/editar/<int:pk>/', core_views.empresa_editar, name='empresa_editar'),
     path('empresas/eliminar/<int:pk>/', core_views.empresa_eliminar, name='empresa_eliminar'),
+
+    path('usuarios/', core_views.usuarios_lista, name='usuarios_lista'),
+    path('usuarios/crear/', core_views.usuario_crear, name='usuario_crear'),
+    path('usuarios/editar/<int:pk>/', core_views.usuario_editar, name='usuario_editar'),
+    path('usuarios/eliminar/<int:pk>/', core_views.usuario_eliminar, name='usuario_eliminar'),
+
+    path('api/sucursales/', core_views.api_sucursales, name='api_sucursales'),
+
 ]
