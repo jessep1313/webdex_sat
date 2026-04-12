@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS proveedores (
     Correo VARCHAR(255) NULL,
     Correo2 VARCHAR(255) NULL,
     Correo3 VARCHAR(255) NULL,
+    RFC VARCHAR(255) NULL,
+    RazonSocial VARCHAR(255) NULL,
     nombre VARCHAR(255) NULL,
     apellidoPaterno VARCHAR(255) NULL,
     apellidoMaterno VARCHAR(255) NULL,
@@ -32,7 +34,10 @@ CREATE TABLE IF NOT EXISTS proveedores (
     opinion INT DEFAULT 0,
     fecha_opinion DATE NULL,
     constancia INT DEFAULT 0,
-    fecha_constancia DATE NULL
+    fecha_constancia DATE NULL,
+    rfc_identy VARCHAR(255) NULL,
+    Estatus VARCHAR(255) NULL
+
 );
 
 -- Tabla cfdi_recibido
@@ -68,9 +73,13 @@ CREATE TABLE IF NOT EXISTS proveedores_historico (
     Correo VARCHAR(255) NULL,
     Correo2 VARCHAR(255) NULL,
     Correo3 VARCHAR(255) NULL,
+    RFC VARCHAR(255) NULL,
+    RazonSocial VARCHAR(255) NULL,
     nombre VARCHAR(255) NULL,
     apellidoPaterno VARCHAR(255) NULL,
     apellidoMaterno VARCHAR(255) NULL,
+    `Razón social` VARCHAR(255) NULL,
+    `Nombre comercial` VARCHAR(255) NULL,
     tipoPersona VARCHAR(255) NULL,
     codigoPostal VARCHAR(255) NULL,
     calle VARCHAR(255) NULL,
@@ -80,13 +89,14 @@ CREATE TABLE IF NOT EXISTS proveedores_historico (
     estado VARCHAR(255) NULL,
     municipio VARCHAR(255) NULL,
     ciudad VARCHAR(255) NULL,
-    fecha_consulta_domicilio DATE NULL,
     telefono VARCHAR(255) NULL,
     opinion INT DEFAULT 0,
     fecha_opinion DATE NULL,
-    estatus_opinion VARCHAR(255) NULL,
     constancia INT DEFAULT 0,
-    fecha_constancia DATE NULL
+    fecha_constancia DATE NULL,
+    rfc_identy VARCHAR(255) NULL,
+    Estatus VARCHAR(255) NULL
+
 );
 
 -- Tabla proveedores_sin_cfdi
@@ -94,13 +104,17 @@ CREATE TABLE IF NOT EXISTS proveedores_sin_cfdi (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tipoProveedor VARCHAR(255) NULL,
     Contacto VARCHAR(255) NULL,
-    Sucursal VARCHAR(255) NULL,
+    Planta VARCHAR(255) NULL,
     Correo VARCHAR(255) NULL,
     Correo2 VARCHAR(255) NULL,
     Correo3 VARCHAR(255) NULL,
+    RFC VARCHAR(255) NULL,
+    RazonSocial VARCHAR(255) NULL,
     nombre VARCHAR(255) NULL,
     apellidoPaterno VARCHAR(255) NULL,
     apellidoMaterno VARCHAR(255) NULL,
+    `Razón social` VARCHAR(255) NULL,
+    `Nombre comercial` VARCHAR(255) NULL,
     tipoPersona VARCHAR(255) NULL,
     codigoPostal VARCHAR(255) NULL,
     calle VARCHAR(255) NULL,
@@ -114,7 +128,10 @@ CREATE TABLE IF NOT EXISTS proveedores_sin_cfdi (
     opinion INT DEFAULT 0,
     fecha_opinion DATE NULL,
     constancia INT DEFAULT 0,
-    fecha_constancia DATE NULL
+    fecha_constancia DATE NULL,
+    rfc_identy VARCHAR(255) NULL,
+    Estatus VARCHAR(255) NULL
+
 );
 
 -- Tabla configuracion_correos
@@ -152,6 +169,8 @@ CREATE TABLE IF NOT EXISTS clientes (
     Correo VARCHAR(255) NULL,
     Correo2 VARCHAR(255) NULL,
     Correo3 VARCHAR(255) NULL,
+    RFC VARCHAR(255) NULL,
+    RazonSocial VARCHAR(255) NULL,
     nombre VARCHAR(255) NULL,
     apellidoPaterno VARCHAR(255) NULL,
     apellidoMaterno VARCHAR(255) NULL,
@@ -170,7 +189,9 @@ CREATE TABLE IF NOT EXISTS clientes (
     opinion INT DEFAULT 0,
     fecha_opinion DATE NULL,
     constancia INT DEFAULT 0,
-    fecha_constancia DATE NULL
+    fecha_constancia DATE NULL,
+    rfc_identy VARCHAR(255) NULL,
+    Estatus VARCHAR(255) NULL
 );
 
 -- Tabla cfdi_emitidos

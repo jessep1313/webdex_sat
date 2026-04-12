@@ -99,5 +99,7 @@ urlpatterns = [
     path('usuario/articulo69b/', core_views.usuario_articulo69b, name='usuario_articulo69b'),
     path('usuario/articulo69bis/', core_views.usuario_articulo69bis, name='usuario_articulo69bis'),
     path('usuario/recibidas/', core_views.usuario_recibidas, name='usuario_recibidas'),
+    path('usuario/revisar-peticiones/', core_views.usuario_revisar_peticiones, name='usuario_revisar_peticiones'),
+    
 
 ]
