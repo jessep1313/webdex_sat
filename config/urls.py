@@ -90,7 +90,16 @@ urlpatterns = [
     path('usuario/peticiones-sat/', core_views.usuario_peticiones_sat, name='usuario_peticiones_sat'),
     path('usuario/recibidas/', core_views.usuario_recibidas, name='usuario_recibidas'),
     path('usuario/emitidas/', core_views.usuario_emitidas, name='usuario_emitidas'),
-    path('usuario/proveedores/', core_views.usuario_proveedores_lista, name='usuario_proveedores_lista'),
+    path('usuario/revisar-peticiones-emitidas/', core_views.usuario_revisar_peticiones_emitidas, name='usuario_revisar_peticiones_emitidas'),
+    # Proveedores (usuario normal)
+    path('usuario/proveedores/', core_views.proveedores_lista, name='usuario_proveedores_lista'),
+    path('usuario/proveedores/data/', core_views.proveedores_data, name='proveedores_data'),
+    path('usuario/proveedores/detalle/<int:pk>/', core_views.proveedor_detalle, name='proveedor_detalle'),
+    path('usuario/proveedores/actualizar/<int:pk>/', core_views.proveedor_actualizar, name='proveedor_actualizar'),
+    path('usuario/proveedores/exportar/', core_views.proveedores_exportar_plantilla, name='proveedores_exportar'),
+    path('usuario/proveedores/importar/', core_views.proveedores_importar, name='proveedores_importar'),
+
+
     path('usuario/proveedores-sin-cfdi/', core_views.usuario_proveedores_sin_cfdi, name='usuario_proveedores_sin_cfdi'),
     path('usuario/opiniones/', core_views.usuario_opiniones, name='usuario_opiniones'),
     path('usuario/constancias/', core_views.usuario_constancias, name='usuario_constancias'),
@@ -100,6 +109,8 @@ urlpatterns = [
     path('usuario/articulo69bis/', core_views.usuario_articulo69bis, name='usuario_articulo69bis'),
     path('usuario/recibidas/', core_views.usuario_recibidas, name='usuario_recibidas'),
     path('usuario/revisar-peticiones/', core_views.usuario_revisar_peticiones, name='usuario_revisar_peticiones'),
+
+    
     
 
 ]

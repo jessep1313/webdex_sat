@@ -5,9 +5,7 @@
 {% block content_title %}Facturas Recibidas - {{ request.session.empresa_nombre }}{% endblock %}
 
 {% block extra_head %}
-<!-- Chart.js (no depende de jQuery) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<!-- DataTables CSS -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
 {% endblock %}
 
@@ -104,21 +102,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for cfdi in cfdis %}
-                <tr>
-                    <td>{{ cfdi.uuid }}</td>
-                    <td>{{ cfdi.fecha }}</td>
-                    <td>{{ cfdi.rfc_emisor }}</td>
-                    <td>{{ cfdi.rfc_receptor }}</td>
-                    <td>${{ cfdi.total }}</td>
-                    <td>{{ cfdi.moneda }}</td>
-                    <td>{{ cfdi.forma_pago }}</td>
-                    <td>{{ cfdi.metodo_pago }}</td>
-                    <td>{{ cfdi.fecha_timbrado }}</td>
-                    <td>${{ cfdi.saldo_pendiente }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="10" class="text-center">No hay CFDI en el rango seleccionado.{% endfor %}
+                <!-- Las filas se llenarán con DataTables -->
             </tbody>
         </table>
     </div>
@@ -149,28 +133,34 @@
     </div>
 </div>
 
+<!-- Datos iniciales en JSON -->
+{{ data_json|json_script:"datos-iniciales" }}
+{{ meses|json_script:"meses-data" }}
+{{ cantidades|json_script:"cantidades-data" }}
+{{ montos|json_script:"montos-data" }}
+
 {% endblock %}
 
 {% block extra_scripts %}
-<!-- DataTables JS (depende de jQuery, que ya está en base.html) -->
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 
 <script>
-    // Datos iniciales desde Django
-    const mesesIniciales = {{ meses|safe }};
-    const cantidadesIniciales = {{ cantidades|safe }};
-    const montosIniciales = {{ montos|safe }};
-    const datosIniciales = {{ cfdis|safe }};
+    // Cargar datos iniciales desde los elementos JSON
+    const datosIniciales = JSON.parse(document.getElementById('datos-iniciales').textContent);
+    const mesesIniciales = JSON.parse(document.getElementById('meses-data').textContent);
+    const cantidadesIniciales = JSON.parse(document.getElementById('cantidades-data').textContent);
+    const montosIniciales = JSON.parse(document.getElementById('montos-data').textContent);
 
     let chartCantidad, chartMonto;
     let dataTable;
 
     function actualizarDatos(respuesta) {
+        // Actualizar resumen
         $('#totalFacturas').text(respuesta.total);
         $('#sumaTotal').text(parseFloat(respuesta.suma_total).toFixed(2));
 
-        // Gráficos
+        // Actualizar gráficos
         if (chartCantidad) chartCantidad.destroy();
         if (chartMonto) chartMonto.destroy();
         if (respuesta.meses.length) {
@@ -220,7 +210,7 @@
             });
         }
 
-        // DataTable
+        // Actualizar DataTable
         if (dataTable) dataTable.clear().destroy();
         dataTable = $('#tablaCfdi').DataTable({
             data: respuesta.data,
@@ -248,21 +238,20 @@
     }
 
     $(document).ready(function() {
-        // Inicializar DataTable y gráficos con datos iniciales
-        if (datosIniciales.length) {
-            dataTable = $('#tablaCfdi').DataTable({
-                data: datosIniciales,
-                columns: [
-                    { data: 'uuid' }, { data: 'fecha' }, { data: 'rfc_emisor' }, { data: 'rfc_receptor' },
-                    { data: 'total' }, { data: 'moneda' }, { data: 'forma_pago' }, { data: 'metodo_pago' },
-                    { data: 'fecha_timbrado' }, { data: 'saldo_pendiente' }
-                ],
-                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-                pageLength: 20,
-                order: [[1, 'desc']]
-            });
-        }
+        // Inicializar DataTable con datos iniciales
+        dataTable = $('#tablaCfdi').DataTable({
+            data: datosIniciales,
+            columns: [
+                { data: 'uuid' }, { data: 'fecha' }, { data: 'rfc_emisor' }, { data: 'rfc_receptor' },
+                { data: 'total' }, { data: 'moneda' }, { data: 'forma_pago' }, { data: 'metodo_pago' },
+                { data: 'fecha_timbrado' }, { data: 'saldo_pendiente' }
+            ],
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 20,
+            order: [[1, 'desc']]
+        });
 
+        // Inicializar gráficos si hay datos
         if (mesesIniciales.length) {
             chartCantidad = new Chart(document.getElementById('chartCantidad'), {
                 type: 'bar',
@@ -325,26 +314,20 @@
                 method: "POST",
                 headers: { 'X-CSRFToken': '{{ csrf_token }}' },
                 success: function(resp) {
-                    if (resp.status === 'ok') {
-                        // Mostrar logs en el contenedor
-                        let logsHtml = '';
-                        if (resp.detalles && resp.detalles.length) {
-                            resp.detalles.forEach(function(msg) {
-                                logsHtml += '<p>' + msg + '</p>';
-                            });
-                        } else {
-                            logsHtml = '<p>' + resp.message + '</p>';
-                        }
-                        $('#logContainer').html(logsHtml);
-                        // Opcional: esperar 3 segundos y luego recargar datos
-                        setTimeout(function() {
-                            $('#modalCarga').modal('hide');
-                            cargarDatosFiltro(); // Recargar tabla y gráficos
-                        }, 3000);
+                    let logsHtml = '';
+                    if (resp.logs && resp.logs.length) {
+                        resp.logs.forEach(function(msg) {
+                            logsHtml += '<p>' + msg + '</p>';
+                        });
                     } else {
-                        $('#logContainer').html('<p class="text-danger">Error: ' + resp.message + '</p>');
-                        setTimeout(function() { $('#modalCarga').modal('hide'); }, 3000);
+                        logsHtml = '<p>' + resp.message + '</p>';
                     }
+                    $('#logContainer').html(logsHtml);
+                    setTimeout(function() {
+                        $('#modalCarga').modal('hide');
+                        // Recargar los datos actuales (con el filtro vigente)
+                        cargarDatosFiltro();
+                    }, 3000);
                 },
                 error: function() {
                     $('#logContainer').html('<p class="text-danger">Error de conexión al servidor.</p>');
@@ -352,10 +335,6 @@
                 }
             });
         });
-
-
-
-        
     });
 </script>
 {% endblock %}

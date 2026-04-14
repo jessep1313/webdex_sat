@@ -9,6 +9,12 @@ import copy
 import re
 from .utils import crear_tablas_empresa
 from django.db import connections
+import json
+import traceback
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+
 
 
 
@@ -1163,7 +1169,7 @@ from empresas.models import EFirma
 from .decorators import usuario_required
 from .forms import PeticionSatForm
 
-@usuario_required
+
 @usuario_required
 def usuario_peticiones_sat(request):
     db_name = request.session.get('empresa_db_name')
@@ -1281,7 +1287,7 @@ from datetime import date
 from .forms import FechasForm
 
 @usuario_required
-def usuario_recibidas(request):
+def usuario_recibidas_2(request):
     db_name = request.session.get('empresa_db_name')
     rfc_empresa = request.session.get('empresa_rfc')
     if not db_name or not rfc_empresa:
@@ -1303,6 +1309,8 @@ def usuario_recibidas(request):
 
     where_clause = ""
     params = [rfc_empresa]
+    print(fecha_inicio)
+    print(fecha_fin)
     if fecha_inicio:
         where_clause += " AND fecha_comprobante >= %s"
         params.append(fecha_inicio)
@@ -1360,7 +1368,7 @@ def usuario_recibidas(request):
             'moneda': row[5],
             'forma_pago': row[6],
             'metodo_pago': row[7],
-            'fecha_timbrado': row[8].strftime('%d/%m/%Y %H:%M') if row[8] else '',
+            'fecha_timbrado': row[8] if row[8] else '',
             'saldo_pendiente': f"{float(row[9]):.2f}"
         })
 
@@ -1373,9 +1381,130 @@ def usuario_recibidas(request):
         'cantidades': cantidades,
         'montos': montos,
     }
+    print(f"DEBUG: total_registros = {total_registros}")
+    print(f"DEBUG: primeros 3 cfdis = {data[:3] if data else []}")
     return render(request, 'core/usuario/recibidas.html', context)
 
+from django.http import JsonResponse
+import traceback
 
+@usuario_required
+def usuario_recibidas(request):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+
+    tabla = "cfdi_recibido"
+    fecha_inicio = request.GET.get('fecha_inicio')
+    fecha_fin = request.GET.get('fecha_fin')
+    if not fecha_inicio and not fecha_fin:
+        hoy = date.today()
+        fecha_inicio = hoy.replace(day=1).isoformat()
+        fecha_fin = hoy.isoformat()
+        form = FechasForm(initial={'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin})
+    else:
+        form = FechasForm(request.GET)
+
+    where_clause = ""
+    params = [rfc_empresa]
+    if fecha_inicio:
+        where_clause += " AND fecha_comprobante >= %s"
+        params.append(fecha_inicio)
+    if fecha_fin:
+        where_clause += " AND fecha_comprobante <= %s"
+        params.append(fecha_fin)
+
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute(f"""
+                SELECT uuid, fecha_comprobante, rfc_emisor, rfc_receptor, total,
+                       moneda, forma_pago, metodo_pago, fecha_timbrado, saldo_pendiente
+                FROM {tabla}
+                WHERE rfc_receptor = %s {where_clause}
+                ORDER BY fecha_comprobante DESC
+            """, params)
+            cfdis = cursor.fetchall()
+
+            cursor.execute(f"""
+                SELECT COUNT(*) as total, SUM(CAST(total AS DECIMAL(18,2))) as suma_total
+                FROM {tabla}
+                WHERE rfc_receptor = %s {where_clause}
+            """, params)
+            resumen = cursor.fetchone()
+            total_registros = resumen[0] or 0
+            suma_total = float(resumen[1] or 0)
+
+            cursor.execute(f"""
+                SELECT
+                    CONCAT(YEAR(fecha_comprobante), '-', LPAD(MONTH(fecha_comprobante), 2, '0')) as mes,
+                    COUNT(*) as cantidad,
+                    SUM(CAST(total AS DECIMAL(18,2))) as monto
+                FROM {tabla}
+                WHERE rfc_receptor = %s AND fecha_comprobante IS NOT NULL {where_clause}
+                GROUP BY YEAR(fecha_comprobante), MONTH(fecha_comprobante)
+                ORDER BY mes
+            """, params)
+            datos_meses = cursor.fetchall()
+    except Exception as e:
+        print(f"Error en consulta: {e}")
+        traceback.print_exc()
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'error': str(e)}, status=500)
+        messages.error(request, 'Error al consultar los datos')
+        return redirect('dashboard')
+
+    meses = [row[0] for row in datos_meses]
+    cantidades = [row[1] for row in datos_meses]
+    montos = [float(row[2]) for row in datos_meses]
+
+    # Formatear datos
+    data = []
+    for row in cfdis:
+        fecha_timbrado = row[8]
+        if fecha_timbrado:
+            if hasattr(fecha_timbrado, 'strftime'):
+                fecha_timbrado = fecha_timbrado.strftime('%d/%m/%Y %H:%M')
+            else:
+                fecha_timbrado = str(fecha_timbrado)
+        else:
+            fecha_timbrado = ''
+        data.append({
+            'uuid': row[0],
+            'fecha': row[1].strftime('%d/%m/%Y') if row[1] else '',
+            'rfc_emisor': row[2],
+            'rfc_receptor': row[3],
+            'total': f"{float(row[4]):.2f}",
+            'moneda': row[5],
+            'forma_pago': row[6],
+            'metodo_pago': row[7],
+            'fecha_timbrado': fecha_timbrado,
+            'saldo_pendiente': f"{float(row[9]):.2f}"
+        })
+
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({
+            'data': data,
+            'total': total_registros,
+            'suma_total': suma_total,
+            'meses': meses,
+            'cantidades': cantidades,
+            'montos': montos,
+        })
+
+    context = {
+        'form': form,
+        'total_registros': total_registros,
+        'suma_total': suma_total,
+        'meses': meses,
+        'cantidades': cantidades,
+        'montos': montos,
+        'data_json': data,
+    }
+    return render(request, 'core/usuario/recibidas.html', context)
 
 
 import os
@@ -1704,13 +1833,683 @@ def usuario_revisar_peticiones(request):
 
 
 
-@usuario_required
-def usuario_emitidas(request):
-    return render(request, 'core/usuario/en_construccion.html')
+
+
 
 @usuario_required
-def usuario_proveedores_lista(request):
-    return render(request, 'core/usuario/en_construccion.html')
+def usuario_revisar_peticiones_emitidas(request):
+    # ========== Funciones auxiliares ==========
+    def extraer_datos_factura_emitida(xml_path, rfc_emisor):
+        try:
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            ns = {
+                'cfdi': 'http://www.sat.gob.mx/cfd/4',
+                'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital',
+                'pago10': 'http://www.sat.gob.mx/Pagos',
+                'pago20': 'http://www.sat.gob.mx/Pagos20'
+            }
+            # Verificar que el emisor coincide con el RFC de la empresa
+            emisor = root.find('cfdi:Emisor', ns)
+            if emisor is None or emisor.get('Rfc') != rfc_emisor:
+                return {'error': 'Emisor no coincide'}
+            complemento_pago = root.find('.//pago10:Pagos', ns) or root.find('.//pago20:Pagos', ns)
+            if complemento_pago is not None:
+                return procesar_complemento_pago_emitida(root, ns, rfc_emisor)
+            else:
+                return procesar_factura_normal_emitida(root, ns, rfc_emisor)
+        except ET.ParseError as e:
+            return {'error': f'XML inválido: {e}'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def procesar_factura_normal_emitida(root, ns, rfc_emisor):
+        emisor = root.find('cfdi:Emisor', ns)
+        rfc_emisor_xml = emisor.get('Rfc') if emisor is not None else ''
+        nombre_emisor = emisor.get('Nombre') if emisor is not None else ''
+        receptor = root.find('cfdi:Receptor', ns)
+        rfc_receptor = receptor.get('Rfc') if receptor is not None else ''
+        nombre_receptor = receptor.get('Nombre') if receptor is not None else ''
+        subtotal = root.get('SubTotal', '0.00')
+        total = root.get('Total', '0.00')
+        iva = '0.00'
+        impuestos = root.find('cfdi:Impuestos', ns)
+        if impuestos is not None:
+            traslados = impuestos.find('cfdi:Traslados', ns)
+            if traslados is not None:
+                for traslado in traslados.findall('cfdi:Traslado', ns):
+                    if traslado.get('Impuesto') == '002':
+                        iva = traslado.get('Importe', '0.00')
+                        break
+        forma_pago_cod = root.get('FormaPago', '99')
+        forma_pago_desc = FORMAS_PAGO.get(forma_pago_cod, f"{forma_pago_cod} - Desconocido")
+        metodo_pago_cod = root.get('MetodoPago', 'PPD')
+        metodo_pago_desc = METODOS_PAGO.get(metodo_pago_cod, f"{metodo_pago_cod} - Desconocido")
+        datos = {
+            'rfc_emisor': rfc_emisor_xml,
+            'rfc_receptor': rfc_receptor,
+            'folio': root.get('Folio'),
+            'uuid': None,
+            'fecha_comprobante': root.get('Fecha')[:10] if root.get('Fecha') else None,
+            'total': total,
+            'iva': iva,
+            'suma': f"{float(subtotal) + float(iva):.2f}",
+            'status_sat': 'R',
+            'moneda': root.get('Moneda', 'MXN'),
+            'tipo_cambio': root.get('TipoCambio', '1.0'),
+            'forma_pago': forma_pago_desc,
+            'metodo_pago': metodo_pago_desc,
+            'fecha_timbrado': None,
+            'saldo_pendiente': total,
+            'nombre_emisor': nombre_emisor,
+            'nombre_receptor': nombre_receptor,
+            'rfc_receptor': rfc_receptor,
+        }
+        timbre = root.find('cfdi:Complemento//tfd:TimbreFiscalDigital', ns)
+        if timbre is not None:
+            datos['uuid'] = timbre.get('UUID')
+            datos['fecha_timbrado'] = timbre.get('FechaTimbrado')[:10] if timbre.get('FechaTimbrado') else None
+        return datos
+
+    def procesar_complemento_pago_emitida(root, ns, rfc_emisor):
+        # Similar a procesar_complemento_pago pero para emitidos
+        emisor = root.find('cfdi:Emisor', ns)
+        rfc_emisor_xml = emisor.get('Rfc') if emisor is not None else ''
+        nombre_emisor = emisor.get('Nombre') if emisor is not None else ''
+        receptor = root.find('cfdi:Receptor', ns)
+        rfc_receptor = receptor.get('Rfc') if receptor is not None else ''
+        nombre_receptor = receptor.get('Nombre') if receptor is not None else ''
+        pagos = root.find('.//pago10:Pagos', ns) or root.find('.//pago20:Pagos', ns)
+        monto_total = '0.00'
+        fecha_pago = None
+        num_operacion = ''
+        uuids_relacionados = []
+        if pagos is not None:
+            pago = pagos.find('.//pago10:Pago', ns) or pagos.find('.//pago20:Pago', ns)
+            if pago is not None:
+                monto_total = pago.get('Monto', '0.00')
+                fecha_pago = pago.get('FechaPago')
+                num_operacion = pago.get('NumOperacion', '')
+                doctos = pago.findall('.//pago10:DoctoRelacionado', ns) or pago.findall('.//pago20:DoctoRelacionado', ns)
+                for docto in doctos:
+                    uuid = docto.get('IdDocumento')
+                    if uuid:
+                        uuids_relacionados.append(uuid)
+        forma_pago_cod = root.get('FormaPago', '99')
+        forma_pago_desc = FORMAS_PAGO.get(forma_pago_cod, f"{forma_pago_cod} - Desconocido")
+        datos = {
+            'rfc_emisor': rfc_emisor_xml,
+            'rfc_receptor': rfc_receptor,
+            'folio': root.get('Folio') or f"CP-{num_operacion}",
+            'uuid': None,
+            'fecha_comprobante': fecha_pago[:10] if fecha_pago else root.get('Fecha')[:10] if root.get('Fecha') else None,
+            'total': monto_total,
+            'moneda': root.get('Moneda', 'MXN'),
+            'forma_pago': forma_pago_desc,
+            'uso_cfdi': receptor.get('UsoCFDI', '') if receptor else '',
+            'uudirelacion': ','.join(uuids_relacionados),
+            'iva': '0.00',
+            'suma': monto_total,
+            'status_sat': 'R',
+            'tipo_cambio': root.get('TipoCambio', '1.0'),
+            'metodo_pago': '',
+            'fecha_timbrado': None,
+            'saldo_pendiente': monto_total,
+            'nombre_emisor': nombre_emisor,
+            'nombre_receptor': nombre_receptor
+        }
+        timbre = root.find('cfdi:Complemento//tfd:TimbreFiscalDigital', ns)
+        if timbre is not None:
+            datos['uuid'] = timbre.get('UUID')
+            datos['fecha_timbrado'] = timbre.get('FechaTimbrado')[:10] if timbre.get('FechaTimbrado') else None
+        return datos
+
+    def insertar_cfdi_emitido(db_name, datos, logs):
+        print(f"    Insertando CFDI emitido UUID {datos['uuid']}...", flush=True)
+        try:
+            with connections[db_name].cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) FROM cfdi_emitidos WHERE uuid = %s", [datos['uuid']])
+                if cursor.fetchone()[0] > 0:
+                    logs.append(f"    UUID {datos['uuid']} ya existe, omitiendo.")
+                    return
+                cursor.execute("""
+                    INSERT INTO cfdi_emitidos (
+                        rfc_emisor, rfc_receptor, folio, uuid, fecha_comprobante, total, iva, suma,
+                        status_sat, moneda, tipo_cambio, forma_pago, metodo_pago, fecha_timbrado, saldo_pendiente
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, [
+                    datos['rfc_emisor'], datos['rfc_receptor'], datos['folio'], datos['uuid'],
+                    datos['fecha_comprobante'], datos['total'], datos['iva'], datos['suma'],
+                    datos['status_sat'], datos['moneda'], datos['tipo_cambio'], datos['forma_pago'],
+                    datos['metodo_pago'], datos['fecha_timbrado'], datos['saldo_pendiente']
+                ])
+            logs.append(f"    CFDI emitido insertado: UUID {datos['uuid']}")
+        except Exception as e:
+            logs.append(f"    Error insertando CFDI emitido: {str(e)}")
+
+    def registrar_cliente(db_name, rfc_cliente, nombre, rfc_empresa, logs):
+        """Registra un cliente en la tabla clientes (si no existe para esta empresa)."""
+        print(f"    Registrando cliente {rfc_cliente}...", flush=True)
+        try:
+            with connections[db_name].cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) FROM clientes WHERE RFC = %s AND rfc_identy = %s", [rfc_cliente, rfc_empresa])
+                if cursor.fetchone()[0] > 0:
+                    print("      Cliente ya existe.", flush=True)
+                    return
+                cursor.execute("""
+                    INSERT INTO clientes (RFC, RazonSocial, Estatus, tipoProveedor, Correo, rfc_identy)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, [rfc_cliente, nombre, 'SinRespuesta', '0tro', 'generico@generico.com', rfc_empresa])
+            logs.append(f"    Cliente registrado: {rfc_cliente} - {nombre}")
+            print(f"    Cliente registrado: {rfc_cliente} - {nombre}", flush=True)
+        except Exception as e:
+            logs.append(f"    Error registrando cliente: {str(e)}")
+            print(f"    Error registrando cliente: {str(e)}", flush=True)
+
+    # ========== Lógica principal ==========
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    empresa_nombre = request.session.get('empresa_nombre')
+    if not db_name or not rfc_empresa or not empresa_nombre:
+        return JsonResponse({'status': 'error', 'message': 'No se ha identificado la empresa.'})
+
+    print(f"\n=== REVISANDO PETICIONES EMITIDAS PARA EMPRESA {empresa_nombre} (RFC: {rfc_empresa}, DB: {db_name}) ===", flush=True)
+
+    try:
+        from empresas.models import EFirma
+        efirma = EFirma.objects.using('default').get(empresa=empresa_nombre, estatus='validado')
+    except EFirma.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'La empresa no tiene una FIEL válida cargada.'})
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT idpeticion, fechainicio
+            FROM peticiones_sat
+            WHERE rfc = %s AND estatuspeticion = 0 AND tipo = 'E'
+        """, [rfc_empresa])
+        peticiones_descarga = cursor.fetchall()
+        cursor.execute("""
+            SELECT idpeticion, fechainicio
+            FROM peticiones_sat
+            WHERE rfc = %s AND estatuspeticion = 1 AND cargadoxml = 0 AND tipo = 'E'
+        """, [rfc_empresa])
+        peticiones_procesar = cursor.fetchall()
+
+    logs = []
+    total_descargas = 0
+    total_procesados = 0
+
+    # ========== 1. Descarga ==========
+    for id_peticion, fechainicio in peticiones_descarga:
+        logs.append(f"Verificando petición emitida {id_peticion}...")
+        try:
+            if isinstance(fechainicio, date):
+                fecha = fechainicio
+            else:
+                fecha = datetime.strptime(fechainicio, '%Y-%m-%d').date()
+            cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+            key_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_key)
+            if not os.path.exists(cer_path) or not os.path.exists(key_path):
+                logs.append("  Archivos FIEL no encontrados.")
+                continue
+            password = loads(efirma.password)
+            with open(cer_path, 'rb') as cer_file, open(key_path, 'rb') as key_file:
+                signer = Signer.load(certificate=cer_file.read(), key=key_file.read(), password=password)
+            sat = SAT(signer=signer)
+            respuesta = sat.recover_comprobante_status(id_peticion)
+            estado = respuesta.get("EstadoSolicitud")
+            if estado == EstadoSolicitud.TERMINADA:
+                ids_paquetes = respuesta.get('IdsPaquetes', [])
+                if ids_paquetes:
+                    folder = os.path.join(settings.MEDIA_ROOT, 'cfdi', rfc_empresa, str(fecha.year), f"{fecha.month:02d}")
+                    os.makedirs(folder, exist_ok=True)
+                    descargados = 0
+                    for id_paquete in ids_paquetes:
+                        try:
+                            _, paquete_base64 = sat.recover_comprobante_download(id_paquete)
+                            if paquete_base64 is None:
+                                logs.append(f"  Paquete {id_paquete} no disponible (None).")
+                                continue
+                            paquete_bytes = base64.b64decode(paquete_base64)
+                            zip_path = os.path.join(folder, f"{id_paquete}.zip")
+                            with open(zip_path, 'wb') as f:
+                                f.write(paquete_bytes)
+                            descargados += 1
+                            logs.append(f"  Paquete {id_paquete} descargado.")
+                        except Exception as e:
+                            logs.append(f"  Error descargando paquete {id_paquete}: {str(e)}")
+                    if descargados > 0:
+                        with connections[db_name].cursor() as cursor_upd:
+                            cursor_upd.execute("UPDATE peticiones_sat SET estatuspeticion = 1 WHERE idpeticion = %s", [id_peticion])
+                        logs.append(f"  Petición emitida {id_peticion} marcada como descargada ({descargados} paquete(s)).")
+                        total_descargas += 1
+                    else:
+                        logs.append("  No se pudo descargar ningún paquete. La petición permanece pendiente.")
+                else:
+                    logs.append("  Petición terminada sin paquetes.")
+            elif estado in (EstadoSolicitud.ACEPTADA, EstadoSolicitud.EN_PROCESO):
+                logs.append("  Petición aún en proceso (no hay respuesta del SAT).")
+            else:
+                logs.append(f"  Petición falló: {respuesta.get('CodEstatus')} - {respuesta.get('Mensaje')}")
+        except Exception as e:
+            logs.append(f"  Error en petición {id_peticion}: {str(e)}")
+
+    # ========== 2. Procesamiento XML ==========
+    for id_peticion, fechainicio in peticiones_procesar:
+        logs.append(f"Procesando XML de petición emitida {id_peticion}...")
+        try:
+            if isinstance(fechainicio, date):
+                fecha = fechainicio
+            else:
+                fecha = datetime.strptime(fechainicio, '%Y-%m-%d').date()
+            zip_folder = os.path.join(settings.MEDIA_ROOT, 'cfdi', rfc_empresa, str(fecha.year), f"{fecha.month:02d}")
+            id_peticion_mayus = id_peticion.upper()
+            zips = glob.glob(os.path.join(zip_folder, f"{id_peticion_mayus}_*.zip"))
+            if not zips:
+                logs.append(f"  No se encontraron ZIP para la petición {id_peticion} en {zip_folder}")
+                continue
+            for zip_path in zips:
+                logs.append(f"  Procesando ZIP: {os.path.basename(zip_path)}")
+                temp_dir = tempfile.mkdtemp()
+                try:
+                    with zipfile.ZipFile(zip_path, 'r') as zf:
+                        zf.extractall(temp_dir)
+                    xml_files = []
+                    for root_dir, _, files in os.walk(temp_dir):
+                        for file in files:
+                            if file.lower().endswith('.xml'):
+                                xml_files.append(os.path.join(root_dir, file))
+                    if not xml_files:
+                        logs.append("    No se encontraron XML en el ZIP.")
+                    for xml_path in xml_files:
+                        datos = extraer_datos_factura_emitida(xml_path, rfc_empresa)
+                        if datos and 'error' not in datos:
+                            insertar_cfdi_emitido(db_name, datos, logs)
+                            if datos.get('rfc_receptor') and datos.get('nombre_receptor'):
+                                registrar_cliente(db_name, datos['rfc_receptor'], datos['nombre_receptor'], rfc_empresa, logs)
+                        else:
+                            error_msg = datos.get('error', 'Desconocido') if datos else 'No se extrajeron datos'
+                            logs.append(f"    Error al extraer datos de {os.path.basename(xml_path)}: {error_msg}")
+                except Exception as e:
+                    logs.append(f"    Error procesando ZIP: {str(e)}")
+                finally:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+            if zips:
+                with connections[db_name].cursor() as cursor_upd:
+                    cursor_upd.execute("UPDATE peticiones_sat SET cargadoxml = 1 WHERE idpeticion = %s", [id_peticion])
+                logs.append("  Petición emitida marcada como procesada (XML cargados).")
+                total_procesados += 1
+        except Exception as e:
+            logs.append(f"  Error procesando petición {id_peticion}: {str(e)}")
+
+    if total_descargas == 0 and total_procesados == 0:
+        status = 'warning'
+        message = 'No se encontraron peticiones emitidas pendientes o no se pudo descargar ningún paquete.'
+    else:
+        status = 'ok'
+        message = f'Proceso completado. Descargas: {total_descargas}, XML procesados: {total_procesados}.'
+
+    return JsonResponse({'status': status, 'message': message, 'logs': logs})
+
+
+
+
+@usuario_required
+def usuario_emitidas(request):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+        messages.error(request, 'No se ha identificado la empresa asociada a su cuenta.')
+        return redirect('dashboard')
+
+    tabla = "cfdi_emitidos"
+    fecha_inicio = request.GET.get('fecha_inicio')
+    fecha_fin = request.GET.get('fecha_fin')
+    if not fecha_inicio and not fecha_fin:
+        hoy = date.today()
+        fecha_inicio = hoy.replace(day=1).isoformat()
+        fecha_fin = hoy.isoformat()
+        form = FechasForm(initial={'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin})
+    else:
+        form = FechasForm(request.GET)
+
+    where_clause = ""
+    params = [rfc_empresa]
+    if fecha_inicio:
+        where_clause += " AND fecha_comprobante >= %s"
+        params.append(fecha_inicio)
+    if fecha_fin:
+        where_clause += " AND fecha_comprobante <= %s"
+        params.append(fecha_fin)
+
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute(f"""
+                SELECT uuid, fecha_comprobante, rfc_emisor, rfc_receptor, total,
+                       moneda, forma_pago, metodo_pago, fecha_timbrado, saldo_pendiente
+                FROM {tabla}
+                WHERE rfc_emisor = %s {where_clause}
+                ORDER BY fecha_comprobante DESC
+            """, params)
+            cfdis = cursor.fetchall()
+
+            cursor.execute(f"""
+                SELECT COUNT(*) as total, SUM(CAST(total AS DECIMAL(18,2))) as suma_total
+                FROM {tabla}
+                WHERE rfc_emisor = %s {where_clause}
+            """, params)
+            resumen = cursor.fetchone()
+            total_registros = resumen[0] or 0
+            suma_total = float(resumen[1] or 0)
+
+            cursor.execute(f"""
+                SELECT
+                    CONCAT(YEAR(fecha_comprobante), '-', LPAD(MONTH(fecha_comprobante), 2, '0')) as mes,
+                    COUNT(*) as cantidad,
+                    SUM(CAST(total AS DECIMAL(18,2))) as monto
+                FROM {tabla}
+                WHERE rfc_emisor = %s AND fecha_comprobante IS NOT NULL {where_clause}
+                GROUP BY YEAR(fecha_comprobante), MONTH(fecha_comprobante)
+                ORDER BY mes
+            """, params)
+            datos_meses = cursor.fetchall()
+    except Exception as e:
+        print(f"Error en consulta: {e}")
+        traceback.print_exc()
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'error': str(e)}, status=500)
+        messages.error(request, 'Error al consultar los datos')
+        return redirect('dashboard')
+
+    meses = [row[0] for row in datos_meses]
+    cantidades = [row[1] for row in datos_meses]
+    montos = [float(row[2]) for row in datos_meses]
+
+    data = []
+    for row in cfdis:
+        fecha_timbrado = row[8]
+        if fecha_timbrado:
+            if hasattr(fecha_timbrado, 'strftime'):
+                fecha_timbrado = fecha_timbrado.strftime('%d/%m/%Y %H:%M')
+            else:
+                fecha_timbrado = str(fecha_timbrado)
+        else:
+            fecha_timbrado = ''
+        data.append({
+            'uuid': row[0],
+            'fecha': row[1].strftime('%d/%m/%Y') if row[1] else '',
+            'rfc_emisor': row[2],
+            'rfc_receptor': row[3],
+            'total': f"{float(row[4]):.2f}",
+            'moneda': row[5],
+            'forma_pago': row[6],
+            'metodo_pago': row[7],
+            'fecha_timbrado': fecha_timbrado,
+            'saldo_pendiente': f"{float(row[9]):.2f}"
+        })
+
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({
+            'data': data,
+            'total': total_registros,
+            'suma_total': suma_total,
+            'meses': meses,
+            'cantidades': cantidades,
+            'montos': montos,
+        })
+
+    context = {
+        'form': form,
+        'total_registros': total_registros,
+        'suma_total': suma_total,
+        'meses': meses,
+        'cantidades': cantidades,
+        'montos': montos,
+        'data_json': data,
+    }
+    return render(request, 'core/usuario/emitidas.html', context)
+
+
+
+
+
+
+
+
+import csv
+import io
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.db import connections
+
+@usuario_required
+def proveedores_lista(request):
+    """Página principal del listado de proveedores."""
+    return render(request, 'core/usuario/proveedores_lista.html')
+
+@usuario_required
+def proveedores_data(request):
+    """Devuelve JSON con los proveedores del cliente actual para DataTable."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor
+            FROM proveedores
+            WHERE rfc_identy = %s
+            ORDER BY RazonSocial
+        """, [rfc_empresa])
+        rows = cursor.fetchall()
+
+    data = []
+    for row in rows:
+        data.append({
+            'id': row[0],
+            'RFC': row[1] or '',
+            'RazonSocial': row[2] or '',
+            'Correo': row[3] or '',
+            'Correo2': row[4] or '',
+            'Correo3': row[5] or '',
+            'tipoProveedor': row[6] or '',
+        })
+    return JsonResponse(data, safe=False)
+
+@usuario_required
+def proveedor_detalle(request, pk):
+    """Obtiene todos los datos de un proveedor para editar."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor,
+                   nombre, apellidoPaterno, apellidoMaterno, Nombrecomercial, tipoPersona,
+                   codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad, telefono
+            FROM proveedores
+            WHERE id = %s AND rfc_identy = %s
+        """, [pk, rfc_empresa])
+        row = cursor.fetchone()
+        if not row:
+            return JsonResponse({'error': 'Proveedor no encontrado'}, status=404)
+
+    data = {
+        'id': row[0],
+        'RFC': row[1] or '',
+        'RazonSocial': row[2] or '',
+        'Correo': row[3] or '',
+        'Correo2': row[4] or '',
+        'Correo3': row[5] or '',
+        'tipoProveedor': row[6] or '',
+        'nombre': row[7] or '',
+        'apellidoPaterno': row[8] or '',
+        'apellidoMaterno': row[9] or '',
+        'Nombrecomercial': row[10] or '',
+        'tipoPersona': row[11] or '',
+        'codigoPostal': row[12] or '',
+        'calle': row[13] or '',
+        'noInt': row[14] or '',
+        'noExt': row[15] or '',
+        'colonia': row[16] or '',
+        'estado': row[17] or '',
+        'municipio': row[18] or '',
+        'ciudad': row[19] or '',
+        'telefono': row[20] or '',
+    }
+    return JsonResponse(data)
+
+@usuario_required
+@csrf_exempt
+def proveedor_actualizar(request, pk):
+    """Actualiza los campos editables de un proveedor."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    # Leer y decodificar JSON con manejo de errores
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except json.JSONDecodeError as e:
+        return JsonResponse({'error': f'JSON inválido: {str(e)}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'Error al leer datos: {str(e)}'}, status=400)
+
+    # Campos editables (nombres exactos de columnas en la base de datos)
+    campos = [
+        'tipoProveedor', 'nombre', 'apellidoPaterno', 'apellidoMaterno',
+        'Nombrecomercial', 'tipoPersona', 'codigoPostal', 'calle', 'noInt',
+        'noExt', 'colonia', 'estado', 'municipio', 'ciudad', 'telefono',
+        'Correo', 'Correo2', 'Correo3'
+    ]
+    set_clause = []
+    valores = []
+    for campo in campos:
+        if campo in data:
+            valor = data[campo]
+            # Si el valor es None o cadena vacía, lo guardamos como None (NULL en BD)
+            if valor is None or valor == '':
+                valor = None
+            set_clause.append(f"`{campo}` = %s")
+            valores.append(valor)
+
+    if not set_clause:
+        return JsonResponse({'error': 'No hay campos para actualizar'}, status=400)
+
+    sql = f"UPDATE proveedores SET {', '.join(set_clause)} WHERE id = %s AND rfc_identy = %s"
+    valores.extend([pk, rfc_empresa])
+
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute(sql, valores)
+            if cursor.rowcount == 0:
+                return JsonResponse({'error': 'Proveedor no encontrado o no pertenece a esta empresa'}, status=404)
+    except Exception as e:
+        # Log del error en consola del servidor
+        print(f"Error actualizando proveedor {pk}: {str(e)}")
+        traceback.print_exc()
+        return JsonResponse({'error': f'Error en base de datos: {str(e)}'}, status=500)
+
+    return JsonResponse({'success': True})
+
+
+
+
+
+@usuario_required
+def proveedores_exportar_plantilla(request):
+    """Exporta CSV con RFC, RazonSocial, Correo, Correo2, Correo3 de los proveedores actuales."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        messages.error(request, 'No se ha identificado la empresa.')
+        return redirect('usuario_proveedores_lista')
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Correo, Correo2, Correo3
+            FROM proveedores
+            WHERE rfc_identy = %s
+            ORDER BY RazonSocial
+        """, [rfc_empresa])
+        rows = cursor.fetchall()
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="proveedores_plantilla.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['RFC', 'RazonSocial', 'Correo', 'Correo2', 'Correo3'])
+    for row in rows:
+        writer.writerow(row)
+    return response
+
+@usuario_required
+@csrf_exempt
+def proveedores_importar(request):
+    """Importa un archivo CSV y actualiza los proveedores (por RFC)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    if 'file' not in request.FILES:
+        return JsonResponse({'error': 'No se envió ningún archivo'}, status=400)
+
+    archivo = request.FILES['file']
+    if not archivo.name.endswith('.csv'):
+        return JsonResponse({'error': 'Solo se aceptan archivos CSV'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    try:
+        decoded = archivo.read().decode('utf-8')
+        reader = csv.DictReader(io.StringIO(decoded))
+        # Verificar columnas esperadas
+        expected = ['RFC', 'RazonSocial', 'Correo', 'Correo2', 'Correo3']
+        if not all(col in reader.fieldnames for col in expected):
+            return JsonResponse({'error': 'El archivo no tiene las columnas requeridas'}, status=400)
+
+        actualizados = 0
+        with connections[db_name].cursor() as cursor:
+            for row in reader:
+                rfc = row.get('RFC')
+                if not rfc:
+                    continue
+                # Verificar que el proveedor existe y pertenece a esta empresa
+                cursor.execute("SELECT id FROM proveedores WHERE RFC = %s AND rfc_identy = %s", [rfc, rfc_empresa])
+                if not cursor.fetchone():
+                    continue
+                # Actualizar solo los campos de correo y razón social (si se permite)
+                sql = """
+                    UPDATE proveedores
+                    SET RazonSocial = %s, Correo = %s, Correo2 = %s, Correo3 = %s
+                    WHERE RFC = %s AND rfc_identy = %s
+                """
+                cursor.execute(sql, [
+                    row.get('RazonSocial', ''),
+                    row.get('Correo', ''),
+                    row.get('Correo2', ''),
+                    row.get('Correo3', ''),
+                    rfc, rfc_empresa
+                ])
+                actualizados += cursor.rowcount
+        return JsonResponse({'success': True, 'actualizados': actualizados})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+
+
+
 
 @usuario_required
 def usuario_proveedores_sin_cfdi(request):
