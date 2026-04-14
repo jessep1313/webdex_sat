@@ -84,13 +84,13 @@ urlpatterns = [
     path('panel-admin/correos/editar/<int:pk>/', core_views.admin_correo_editar, name='admin_correo_editar'),
     path('panel-admin/correos/eliminar/<int:pk>/', core_views.admin_correo_eliminar, name='admin_correo_eliminar'),
 
-
     # Usuario normal
     path('usuario/dashboard/', core_views.usuario_dashboard, name='usuario_dashboard'),
     path('usuario/peticiones-sat/', core_views.usuario_peticiones_sat, name='usuario_peticiones_sat'),
     path('usuario/recibidas/', core_views.usuario_recibidas, name='usuario_recibidas'),
     path('usuario/emitidas/', core_views.usuario_emitidas, name='usuario_emitidas'),
     path('usuario/revisar-peticiones-emitidas/', core_views.usuario_revisar_peticiones_emitidas, name='usuario_revisar_peticiones_emitidas'),
+
     # Proveedores (usuario normal)
     path('usuario/proveedores/', core_views.proveedores_lista, name='usuario_proveedores_lista'),
     path('usuario/proveedores/data/', core_views.proveedores_data, name='proveedores_data'),
@@ -99,8 +99,16 @@ urlpatterns = [
     path('usuario/proveedores/exportar/', core_views.proveedores_exportar_plantilla, name='proveedores_exportar'),
     path('usuario/proveedores/importar/', core_views.proveedores_importar, name='proveedores_importar'),
 
+    # Proveedores sin CFDI
+    path('usuario/proveedores-sin-cfdi/', core_views.proveedores_sin_cfdi_lista, name='usuario_proveedores_sin_cfdi'),
+    path('usuario/proveedores-sin-cfdi/data/', core_views.proveedores_sin_cfdi_data, name='proveedores_sin_cfdi_data'),
+    path('usuario/proveedores-sin-cfdi/detalle/<int:pk>/', core_views.proveedor_sin_cfdi_detalle, name='proveedor_sin_cfdi_detalle'),
+    path('usuario/proveedores-sin-cfdi/actualizar/<int:pk>/', core_views.proveedor_sin_cfdi_actualizar, name='proveedor_sin_cfdi_actualizar'),
+    path('usuario/proveedores-sin-cfdi/crear/', core_views.proveedor_sin_cfdi_crear, name='proveedor_sin_cfdi_crear'),
+    path('usuario/proveedores-sin-cfdi/exportar/', core_views.proveedores_sin_cfdi_exportar, name='proveedores_sin_cfdi_exportar'),
+    path('usuario/proveedores-sin-cfdi/importar/', core_views.proveedores_sin_cfdi_importar, name='proveedores_sin_cfdi_importar'),
 
-    path('usuario/proveedores-sin-cfdi/', core_views.usuario_proveedores_sin_cfdi, name='usuario_proveedores_sin_cfdi'),
+
     path('usuario/opiniones/', core_views.usuario_opiniones, name='usuario_opiniones'),
     path('usuario/constancias/', core_views.usuario_constancias, name='usuario_constancias'),
     path('usuario/validacion-domicilio/', core_views.usuario_validacion_domicilio, name='usuario_validacion_domicilio'),
