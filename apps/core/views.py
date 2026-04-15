@@ -2792,11 +2792,556 @@ def proveedores_sin_cfdi_importar(request):
 
 
 
+# ========== CLIENTES ==========
+@usuario_required
+def clientes_lista(request):
+    """Página principal del listado de clientes."""
+    return render(request, 'core/usuario/clientes_lista.html')
+
+@usuario_required
+def clientes_data(request):
+    """Devuelve JSON con los clientes del cliente actual."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor
+            FROM clientes
+            WHERE rfc_identy = %s
+            ORDER BY RazonSocial
+        """, [rfc_empresa])
+        rows = cursor.fetchall()
+
+    data = []
+    for row in rows:
+        data.append({
+            'id': row[0],
+            'RFC': row[1] or '',
+            'RazonSocial': row[2] or '',
+            'Correo': row[3] or '',
+            'Correo2': row[4] or '',
+            'Correo3': row[5] or '',
+            'tipoProveedor': row[6] or '',
+        })
+    return JsonResponse(data, safe=False)
+
+@usuario_required
+def cliente_detalle(request, pk):
+    """Obtiene todos los datos de un cliente para editar."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor,
+                   nombre, apellidoPaterno, apellidoMaterno, Nombrecomercial, tipoPersona,
+                   codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad, telefono
+            FROM clientes
+            WHERE id = %s AND rfc_identy = %s
+        """, [pk, rfc_empresa])
+        row = cursor.fetchone()
+        if not row:
+            return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
+
+    data = {
+        'id': row[0],
+        'RFC': row[1] or '',
+        'RazonSocial': row[2] or '',
+        'Correo': row[3] or '',
+        'Correo2': row[4] or '',
+        'Correo3': row[5] or '',
+        'tipoProveedor': row[6] or '',
+        'nombre': row[7] or '',
+        'apellidoPaterno': row[8] or '',
+        'apellidoMaterno': row[9] or '',
+        'Nombrecomercial': row[10] or '',
+        'tipoPersona': row[11] or '',
+        'codigoPostal': row[12] or '',
+        'calle': row[13] or '',
+        'noInt': row[14] or '',
+        'noExt': row[15] or '',
+        'colonia': row[16] or '',
+        'estado': row[17] or '',
+        'municipio': row[18] or '',
+        'ciudad': row[19] or '',
+        'telefono': row[20] or '',
+    }
+    return JsonResponse(data)
+
+@usuario_required
+@csrf_exempt
+def cliente_actualizar(request, pk):
+    """Actualiza los campos editables de un cliente."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception as e:
+        return JsonResponse({'error': f'JSON inválido: {str(e)}'}, status=400)
+
+    campos = [
+        'tipoProveedor', 'nombre', 'apellidoPaterno', 'apellidoMaterno',
+        'Nombrecomercial', 'tipoPersona', 'codigoPostal', 'calle', 'noInt',
+        'noExt', 'colonia', 'estado', 'municipio', 'ciudad', 'telefono',
+        'Correo', 'Correo2', 'Correo3'
+    ]
+    set_clause = []
+    valores = []
+    for campo in campos:
+        if campo in data:
+            valor = data[campo]
+            if valor is None or valor == '':
+                valor = None
+            set_clause.append(f"`{campo}` = %s")
+            valores.append(valor)
+
+    if not set_clause:
+        return JsonResponse({'error': 'No hay campos para actualizar'}, status=400)
+
+    sql = f"UPDATE clientes SET {', '.join(set_clause)} WHERE id = %s AND rfc_identy = %s"
+    valores.extend([pk, rfc_empresa])
+
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute(sql, valores)
+            if cursor.rowcount == 0:
+                return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
+    except Exception as e:
+        print(f"Error actualizando cliente {pk}: {e}")
+        return JsonResponse({'error': f'Error en base de datos: {str(e)}'}, status=500)
+
+    return JsonResponse({'success': True})
+
+@usuario_required
+@csrf_exempt
+def cliente_crear(request):
+    """Crea un nuevo cliente."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception as e:
+        return JsonResponse({'error': f'JSON inválido: {str(e)}'}, status=400)
+
+    rfc = data.get('RFC')
+    razon_social = data.get('RazonSocial')
+    if not rfc or not razon_social:
+        return JsonResponse({'error': 'RFC y Razón Social son obligatorios'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        # Verificar si ya existe
+        cursor.execute("SELECT id FROM clientes WHERE RFC = %s AND rfc_identy = %s", [rfc, rfc_empresa])
+        if cursor.fetchone():
+            return JsonResponse({'error': 'Ya existe un cliente con ese RFC'}, status=400)
+
+        sql = """
+            INSERT INTO clientes
+            (RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor,
+             nombre, apellidoPaterno, apellidoMaterno, Nombrecomercial, tipoPersona,
+             codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad, telefono,
+             rfc_identy)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        valores = (
+            rfc, razon_social,
+            data.get('Correo', ''), data.get('Correo2', ''), data.get('Correo3', ''),
+            data.get('tipoProveedor', ''),
+            data.get('nombre', ''), data.get('apellidoPaterno', ''), data.get('apellidoMaterno', ''),
+            data.get('Nombrecomercial', ''), data.get('tipoPersona', ''),
+            data.get('codigoPostal', ''), data.get('calle', ''), data.get('noInt', ''),
+            data.get('noExt', ''), data.get('colonia', ''), data.get('estado', ''),
+            data.get('municipio', ''), data.get('ciudad', ''), data.get('telefono', ''),
+            rfc_empresa
+        )
+        cursor.execute(sql, valores)
+        new_id = cursor.lastrowid
+
+    return JsonResponse({'success': True, 'id': new_id})
+
+@usuario_required
+def clientes_exportar(request):
+    """Exporta CSV con los clientes del cliente actual."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        messages.error(request, 'No se ha identificado la empresa.')
+        return redirect('usuario_clientes_lista')
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Correo, Correo2, Correo3
+            FROM clientes
+            WHERE rfc_identy = %s
+            ORDER BY RazonSocial
+        """, [rfc_empresa])
+        rows = cursor.fetchall()
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="clientes.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['RFC', 'RazonSocial', 'Correo', 'Correo2', 'Correo3'])
+    for row in rows:
+        writer.writerow(row)
+    return response
+
+@usuario_required
+@csrf_exempt
+def clientes_importar(request):
+    """Importa CSV y actualiza o crea clientes."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    if 'file' not in request.FILES:
+        return JsonResponse({'error': 'No se envió ningún archivo'}, status=400)
+
+    archivo = request.FILES['file']
+    if not archivo.name.endswith('.csv'):
+        return JsonResponse({'error': 'Solo se aceptan archivos CSV'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    try:
+        decoded = archivo.read().decode('utf-8')
+        reader = csv.DictReader(io.StringIO(decoded))
+        expected = ['RFC', 'RazonSocial', 'Correo', 'Correo2', 'Correo3']
+        if not all(col in reader.fieldnames for col in expected):
+            return JsonResponse({'error': 'El archivo no tiene las columnas requeridas'}, status=400)
+
+        creados = 0
+        actualizados = 0
+        with connections[db_name].cursor() as cursor:
+            for row in reader:
+                rfc = row.get('RFC')
+                if not rfc:
+                    continue
+                # Verificar si ya existe
+                cursor.execute("SELECT id FROM clientes WHERE RFC = %s AND rfc_identy = %s", [rfc, rfc_empresa])
+                exists = cursor.fetchone()
+                if exists:
+                    sql = """
+                        UPDATE clientes
+                        SET RazonSocial = %s, Correo = %s, Correo2 = %s, Correo3 = %s
+                        WHERE RFC = %s AND rfc_identy = %s
+                    """
+                    cursor.execute(sql, [
+                        row.get('RazonSocial', ''),
+                        row.get('Correo', ''),
+                        row.get('Correo2', ''),
+                        row.get('Correo3', ''),
+                        rfc, rfc_empresa
+                    ])
+                    actualizados += cursor.rowcount
+                else:
+                    sql = """
+                        INSERT INTO clientes
+                        (RFC, RazonSocial, Correo, Correo2, Correo3, rfc_identy)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(sql, [
+                        rfc, row.get('RazonSocial', ''),
+                        row.get('Correo', ''), row.get('Correo2', ''), row.get('Correo3', ''),
+                        rfc_empresa
+                    ])
+                    creados += 1
+        return JsonResponse({'success': True, 'creados': creados, 'actualizados': actualizados})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
+# ========== CLIENTES SIN CFDI ==========
+@usuario_required
+def clientes_sin_cfdi_lista(request):
+    """Página principal del listado de clientes sin CFDI."""
+    return render(request, 'core/usuario/clientes_sin_cfdi_lista.html')
 
+@usuario_required
+def clientes_sin_cfdi_data(request):
+    """Devuelve JSON con los clientes sin CFDI del cliente actual."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
 
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor
+            FROM clientes_sin_cfdi
+            WHERE rfc_identy = %s
+            ORDER BY RazonSocial
+        """, [rfc_empresa])
+        rows = cursor.fetchall()
 
+    data = []
+    for row in rows:
+        data.append({
+            'id': row[0],
+            'RFC': row[1] or '',
+            'RazonSocial': row[2] or '',
+            'Correo': row[3] or '',
+            'Correo2': row[4] or '',
+            'Correo3': row[5] or '',
+            'tipoProveedor': row[6] or '',
+        })
+    return JsonResponse(data, safe=False)
+
+@usuario_required
+def cliente_sin_cfdi_detalle(request, pk):
+    """Obtiene todos los datos de un cliente sin CFDI para editar."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor,
+                   nombre, apellidoPaterno, apellidoMaterno, Nombrecomercial, tipoPersona,
+                   codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad, telefono
+            FROM clientes_sin_cfdi
+            WHERE id = %s AND rfc_identy = %s
+        """, [pk, rfc_empresa])
+        row = cursor.fetchone()
+        if not row:
+            return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
+
+    data = {
+        'id': row[0],
+        'RFC': row[1] or '',
+        'RazonSocial': row[2] or '',
+        'Correo': row[3] or '',
+        'Correo2': row[4] or '',
+        'Correo3': row[5] or '',
+        'tipoProveedor': row[6] or '',
+        'nombre': row[7] or '',
+        'apellidoPaterno': row[8] or '',
+        'apellidoMaterno': row[9] or '',
+        'Nombrecomercial': row[10] or '',
+        'tipoPersona': row[11] or '',
+        'codigoPostal': row[12] or '',
+        'calle': row[13] or '',
+        'noInt': row[14] or '',
+        'noExt': row[15] or '',
+        'colonia': row[16] or '',
+        'estado': row[17] or '',
+        'municipio': row[18] or '',
+        'ciudad': row[19] or '',
+        'telefono': row[20] or '',
+    }
+    return JsonResponse(data)
+
+@usuario_required
+@csrf_exempt
+def cliente_sin_cfdi_actualizar(request, pk):
+    """Actualiza los campos editables de un cliente sin CFDI."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception as e:
+        return JsonResponse({'error': f'JSON inválido: {str(e)}'}, status=400)
+
+    campos = [
+        'tipoProveedor', 'nombre', 'apellidoPaterno', 'apellidoMaterno',
+        'Nombrecomercial', 'tipoPersona', 'codigoPostal', 'calle', 'noInt',
+        'noExt', 'colonia', 'estado', 'municipio', 'ciudad', 'telefono',
+        'Correo', 'Correo2', 'Correo3'
+    ]
+    set_clause = []
+    valores = []
+    for campo in campos:
+        if campo in data:
+            valor = data[campo]
+            if valor is None or valor == '':
+                valor = None
+            set_clause.append(f"`{campo}` = %s")
+            valores.append(valor)
+
+    if not set_clause:
+        return JsonResponse({'error': 'No hay campos para actualizar'}, status=400)
+
+    sql = f"UPDATE clientes_sin_cfdi SET {', '.join(set_clause)} WHERE id = %s AND rfc_identy = %s"
+    valores.extend([pk, rfc_empresa])
+
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute(sql, valores)
+            if cursor.rowcount == 0:
+                return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
+    except Exception as e:
+        print(f"Error actualizando cliente sin CFDI {pk}: {e}")
+        return JsonResponse({'error': f'Error en base de datos: {str(e)}'}, status=500)
+
+    return JsonResponse({'success': True})
+
+@usuario_required
+@csrf_exempt
+def cliente_sin_cfdi_crear(request):
+    """Crea un nuevo cliente sin CFDI."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception as e:
+        return JsonResponse({'error': f'JSON inválido: {str(e)}'}, status=400)
+
+    rfc = data.get('RFC')
+    razon_social = data.get('RazonSocial')
+    if not rfc or not razon_social:
+        return JsonResponse({'error': 'RFC y Razón Social son obligatorios'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        # Verificar si ya existe
+        cursor.execute("SELECT id FROM clientes_sin_cfdi WHERE RFC = %s AND rfc_identy = %s", [rfc, rfc_empresa])
+        if cursor.fetchone():
+            return JsonResponse({'error': 'Ya existe un cliente con ese RFC'}, status=400)
+
+        sql = """
+            INSERT INTO clientes_sin_cfdi
+            (RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor,
+             nombre, apellidoPaterno, apellidoMaterno, Nombrecomercial, tipoPersona,
+             codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad, telefono,
+             rfc_identy)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        valores = (
+            rfc, razon_social,
+            data.get('Correo', ''), data.get('Correo2', ''), data.get('Correo3', ''),
+            data.get('tipoProveedor', ''),
+            data.get('nombre', ''), data.get('apellidoPaterno', ''), data.get('apellidoMaterno', ''),
+            data.get('Nombrecomercial', ''), data.get('tipoPersona', ''),
+            data.get('codigoPostal', ''), data.get('calle', ''), data.get('noInt', ''),
+            data.get('noExt', ''), data.get('colonia', ''), data.get('estado', ''),
+            data.get('municipio', ''), data.get('ciudad', ''), data.get('telefono', ''),
+            rfc_empresa
+        )
+        cursor.execute(sql, valores)
+        new_id = cursor.lastrowid
+
+    return JsonResponse({'success': True, 'id': new_id})
+
+@usuario_required
+def clientes_sin_cfdi_exportar(request):
+    """Exporta CSV con los clientes sin CFDI del cliente actual."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        messages.error(request, 'No se ha identificado la empresa.')
+        return redirect('usuario_clientes_sin_cfdi')
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Correo, Correo2, Correo3
+            FROM clientes_sin_cfdi
+            WHERE rfc_identy = %s
+            ORDER BY RazonSocial
+        """, [rfc_empresa])
+        rows = cursor.fetchall()
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="clientes_sin_cfdi.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['RFC', 'RazonSocial', 'Correo', 'Correo2', 'Correo3'])
+    for row in rows:
+        writer.writerow(row)
+    return response
+
+@usuario_required
+@csrf_exempt
+def clientes_sin_cfdi_importar(request):
+    """Importa CSV y actualiza o crea clientes sin CFDI."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    if 'file' not in request.FILES:
+        return JsonResponse({'error': 'No se envió ningún archivo'}, status=400)
+
+    archivo = request.FILES['file']
+    if not archivo.name.endswith('.csv'):
+        return JsonResponse({'error': 'Solo se aceptan archivos CSV'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    try:
+        decoded = archivo.read().decode('utf-8')
+        reader = csv.DictReader(io.StringIO(decoded))
+        expected = ['RFC', 'RazonSocial', 'Correo', 'Correo2', 'Correo3']
+        if not all(col in reader.fieldnames for col in expected):
+            return JsonResponse({'error': 'El archivo no tiene las columnas requeridas'}, status=400)
+
+        creados = 0
+        actualizados = 0
+        with connections[db_name].cursor() as cursor:
+            for row in reader:
+                rfc = row.get('RFC')
+                if not rfc:
+                    continue
+                # Verificar si ya existe
+                cursor.execute("SELECT id FROM clientes_sin_cfdi WHERE RFC = %s AND rfc_identy = %s", [rfc, rfc_empresa])
+                exists = cursor.fetchone()
+                if exists:
+                    sql = """
+                        UPDATE clientes_sin_cfdi
+                        SET RazonSocial = %s, Correo = %s, Correo2 = %s, Correo3 = %s
+                        WHERE RFC = %s AND rfc_identy = %s
+                    """
+                    cursor.execute(sql, [
+                        row.get('RazonSocial', ''),
+                        row.get('Correo', ''),
+                        row.get('Correo2', ''),
+                        row.get('Correo3', ''),
+                        rfc, rfc_empresa
+                    ])
+                    actualizados += cursor.rowcount
+                else:
+                    sql = """
+                        INSERT INTO clientes_sin_cfdi
+                        (RFC, RazonSocial, Correo, Correo2, Correo3, rfc_identy)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(sql, [
+                        rfc, row.get('RazonSocial', ''),
+                        row.get('Correo', ''), row.get('Correo2', ''), row.get('Correo3', ''),
+                        rfc_empresa
+                    ])
+                    creados += 1
+        return JsonResponse({'success': True, 'creados': creados, 'actualizados': actualizados})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @usuario_required

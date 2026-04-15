@@ -1,0 +1,329 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Clientes sin CFDI{% endblock %}
+{% block content_title %}Catálogo de Clientes sin CFDI{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<style>
+    .modal-xl { max-width: 90%; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title">Clientes sin CFDI registrados</h3>
+        <div>
+            <button type="button" id="btnNuevo" class="btn btn-primary btn-sm me-2">
+                <i class="bi bi-plus-circle"></i> Nuevo cliente
+            </button>
+            <button type="button" id="btnExportar" class="btn btn-success btn-sm me-2">
+                <i class="bi bi-download"></i> Exportar
+            </button>
+            <button type="button" id="btnImportar" class="btn btn-info btn-sm">
+                <i class="bi bi-upload"></i> Importar CSV
+            </button>
+            <input type="file" id="fileImport" style="display: none;" accept=".csv">
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="tablaClientes" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>RFC</th>
+                    <th>Razón Social</th>
+                    <th>Correo</th>
+                    <th>Correo2</th>
+                    <th>Correo3</th>
+                    <th>Tipo Cliente</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal para editar/crear cliente -->
+<div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditar">
+                    <input type="hidden" id="edit_id">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">RFC</label>
+                            <input type="text" id="edit_RFC" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Razón Social</label>
+                            <input type="text" id="edit_RazonSocial" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Correo</label>
+                            <input type="email" id="edit_Correo" class="form-control">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Correo 2</label>
+                            <input type="email" id="edit_Correo2" class="form-control">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Correo 3</label>
+                            <input type="email" id="edit_Correo3" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tipo Cliente</label>
+                            <input type="text" id="edit_tipoProveedor" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nombre Comercial</label>
+                            <input type="text" id="edit_Nombrecomercial" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Nombre</label>
+                            <input type="text" id="edit_nombre" class="form-control">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Apellido Paterno</label>
+                            <input type="text" id="edit_apellidoPaterno" class="form-control">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Apellido Materno</label>
+                            <input type="text" id="edit_apellidoMaterno" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Tipo Persona</label>
+                            <input type="text" id="edit_tipoPersona" class="form-control">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Código Postal</label>
+                            <input type="text" id="edit_codigoPostal" class="form-control">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Teléfono</label>
+                            <input type="text" id="edit_telefono" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Calle</label>
+                            <input type="text" id="edit_calle" class="form-control">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Número Interior</label>
+                            <input type="text" id="edit_noInt" class="form-control">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Número Exterior</label>
+                            <input type="text" id="edit_noExt" class="form-control">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Colonia</label>
+                            <input type="text" id="edit_colonia" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Estado</label>
+                            <input type="text" id="edit_estado" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Municipio</label>
+                            <input type="text" id="edit_municipio" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Ciudad</label>
+                            <input type="text" id="edit_ciudad" class="form-control">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btnGuardar" class="btn btn-primary">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    let dataTable;
+
+    function cargarTabla() {
+        $.ajax({
+            url: "{% url 'clientes_sin_cfdi_data' %}",
+            method: "GET",
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(data) {
+                if (dataTable) dataTable.clear().destroy();
+                dataTable = $('#tablaClientes').DataTable({
+                    data: data,
+                    columns: [
+                        { data: 'RFC' }, { data: 'RazonSocial' }, { data: 'Correo' },
+                        { data: 'Correo2' }, { data: 'Correo3' }, { data: 'tipoProveedor' },
+                        {
+                            data: null,
+                            render: function(row) {
+                                return '<button class="btn btn-sm btn-warning editar" data-id="' + row.id + '">' +
+                                       '<i class="bi bi-pencil"></i> Editar</button>';
+                            }
+                        }
+                    ],
+                    language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                    pageLength: 20,
+                    order: [[1, 'asc']],
+                    columnDefs: [{ orderable: false, targets: 6 }]
+                });
+            },
+            error: function() { alert('Error al cargar clientes'); }
+        });
+    }
+
+    function limpiarModal() {
+        $('#edit_id').val('');
+        $('#edit_RFC').val('').prop('readonly', false);
+        $('#edit_RazonSocial').val('');
+        $('#edit_Correo, #edit_Correo2, #edit_Correo3').val('');
+        $('#edit_tipoProveedor, #edit_nombre, #edit_apellidoPaterno, #edit_apellidoMaterno').val('');
+        $('#edit_Nombrecomercial, #edit_tipoPersona, #edit_codigoPostal, #edit_calle').val('');
+        $('#edit_noInt, #edit_noExt, #edit_colonia, #edit_estado, #edit_municipio, #edit_ciudad, #edit_telefono').val('');
+    }
+
+    function cargarDetalle(id) {
+        $.ajax({
+            url: "{% url 'cliente_sin_cfdi_detalle' 0 %}".replace('0', id),
+            method: "GET",
+            success: function(data) {
+                $('#edit_id').val(data.id);
+                $('#edit_RFC').val(data.RFC).prop('readonly', true);
+                $('#edit_RazonSocial').val(data.RazonSocial);
+                $('#edit_Correo').val(data.Correo);
+                $('#edit_Correo2').val(data.Correo2);
+                $('#edit_Correo3').val(data.Correo3);
+                $('#edit_tipoProveedor').val(data.tipoProveedor);
+                $('#edit_nombre').val(data.nombre);
+                $('#edit_apellidoPaterno').val(data.apellidoPaterno);
+                $('#edit_apellidoMaterno').val(data.apellidoMaterno);
+                $('#edit_Nombrecomercial').val(data.Nombrecomercial);
+                $('#edit_tipoPersona').val(data.tipoPersona);
+                $('#edit_codigoPostal').val(data.codigoPostal);
+                $('#edit_calle').val(data.calle);
+                $('#edit_noInt').val(data.noInt);
+                $('#edit_noExt').val(data.noExt);
+                $('#edit_colonia').val(data.colonia);
+                $('#edit_estado').val(data.estado);
+                $('#edit_municipio').val(data.municipio);
+                $('#edit_ciudad').val(data.ciudad);
+                $('#edit_telefono').val(data.telefono);
+                $('#modalEditar').modal('show');
+            },
+            error: function() { alert('Error al cargar datos'); }
+        });
+    }
+
+    function guardarCliente() {
+        const id = $('#edit_id').val();
+        const data = {
+            RFC: $('#edit_RFC').val(),
+            RazonSocial: $('#edit_RazonSocial').val(),
+            Correo: $('#edit_Correo').val(),
+            Correo2: $('#edit_Correo2').val(),
+            Correo3: $('#edit_Correo3').val(),
+            tipoProveedor: $('#edit_tipoProveedor').val(),
+            nombre: $('#edit_nombre').val(),
+            apellidoPaterno: $('#edit_apellidoPaterno').val(),
+            apellidoMaterno: $('#edit_apellidoMaterno').val(),
+            Nombrecomercial: $('#edit_Nombrecomercial').val(),
+            tipoPersona: $('#edit_tipoPersona').val(),
+            codigoPostal: $('#edit_codigoPostal').val(),
+            calle: $('#edit_calle').val(),
+            noInt: $('#edit_noInt').val(),
+            noExt: $('#edit_noExt').val(),
+            colonia: $('#edit_colonia').val(),
+            estado: $('#edit_estado').val(),
+            municipio: $('#edit_municipio').val(),
+            ciudad: $('#edit_ciudad').val(),
+            telefono: $('#edit_telefono').val()
+        };
+        const url = id ? "{% url 'cliente_sin_cfdi_actualizar' 0 %}".replace('0', id) : "{% url 'cliente_sin_cfdi_crear' %}";
+        $.ajax({
+            url: url,
+            method: "POST",
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(resp) {
+                if (resp.success) {
+                    $('#modalEditar').modal('hide');
+                    cargarTabla();
+                } else alert('Error: ' + (resp.error || 'Desconocido'));
+            },
+            error: function(xhr) { alert('Error al guardar: ' + xhr.responseText); }
+        });
+    }
+
+    $(document).ready(function() {
+        cargarTabla();
+
+        $('#tablaClientes').on('click', '.editar', function() {
+            cargarDetalle($(this).data('id'));
+        });
+
+        $('#btnNuevo').click(function() {
+            limpiarModal();
+            $('#modalEditar').modal('show');
+        });
+
+        $('#btnGuardar').click(guardarCliente);
+
+        $('#btnExportar').click(function() {
+            window.location.href = "{% url 'clientes_sin_cfdi_exportar' %}";
+        });
+
+        $('#btnImportar').click(function() {
+            $('#fileImport').click();
+        });
+
+        $('#fileImport').change(function() {
+            const file = this.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            $.ajax({
+                url: "{% url 'clientes_sin_cfdi_importar' %}",
+                method: "POST",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(resp) {
+                    if (resp.success) {
+                        alert(`Importación exitosa. Creados: ${resp.creados}, Actualizados: ${resp.actualizados}`);
+                        cargarTabla();
+                    } else alert('Error: ' + resp.error);
+                },
+                error: function() { alert('Error en la importación'); }
+            });
+        });
+    });
+</script>
+{% endblock %}

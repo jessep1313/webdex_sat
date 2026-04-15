@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS proveedores_sin_cfdi (
     Correo3 VARCHAR(255) NULL,
     RFC VARCHAR(255) NULL,
     RazonSocial VARCHAR(255) NULL,
-    nombre VARCHAR(255) NULL,|
+    nombre VARCHAR(255) NULL,
     apellidoPaterno VARCHAR(255) NULL,
     apellidoMaterno VARCHAR(255) NULL,
     Nombrecomercial VARCHAR(255) NULL,
@@ -128,7 +128,40 @@ CREATE TABLE IF NOT EXISTS proveedores_sin_cfdi (
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
     Estatus VARCHAR(255) NULL
+);
 
+
+-- Tabla clientes_sin_cfdi
+CREATE TABLE IF NOT EXISTS clientes_sin_cfdi (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tipoProveedor VARCHAR(255) NULL,
+    Contacto VARCHAR(255) NULL,
+    Planta VARCHAR(255) NULL,
+    Correo VARCHAR(255) NULL,
+    Correo2 VARCHAR(255) NULL,
+    Correo3 VARCHAR(255) NULL,
+    RFC VARCHAR(255) NULL,
+    RazonSocial VARCHAR(255) NULL,
+    nombre VARCHAR(255) NULL,
+    apellidoPaterno VARCHAR(255) NULL,
+    apellidoMaterno VARCHAR(255) NULL,
+    Nombrecomercial VARCHAR(255) NULL,
+    tipoPersona VARCHAR(255) NULL,
+    codigoPostal VARCHAR(255) NULL,
+    calle VARCHAR(255) NULL,
+    noInt VARCHAR(255) NULL,
+    noExt VARCHAR(255) NULL,
+    colonia VARCHAR(255) NULL,
+    estado VARCHAR(255) NULL,
+    municipio VARCHAR(255) NULL,
+    ciudad VARCHAR(255) NULL,
+    telefono VARCHAR(255) NULL,
+    opinion INT DEFAULT 0,
+    fecha_opinion DATE NULL,
+    constancia INT DEFAULT 0,
+    fecha_constancia DATE NULL,
+    rfc_identy VARCHAR(255) NULL,
+    Estatus VARCHAR(255) NULL
 );
 
 -- Tabla configuracion_correos

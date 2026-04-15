@@ -108,6 +108,25 @@ urlpatterns = [
     path('usuario/proveedores-sin-cfdi/exportar/', core_views.proveedores_sin_cfdi_exportar, name='proveedores_sin_cfdi_exportar'),
     path('usuario/proveedores-sin-cfdi/importar/', core_views.proveedores_sin_cfdi_importar, name='proveedores_sin_cfdi_importar'),
 
+    # Clientes
+    path('usuario/clientes/', core_views.clientes_lista, name='usuario_clientes_lista'),
+    path('usuario/clientes/data/', core_views.clientes_data, name='clientes_data'),
+    path('usuario/clientes/detalle/<int:pk>/', core_views.cliente_detalle, name='cliente_detalle'),
+    path('usuario/clientes/actualizar/<int:pk>/', core_views.cliente_actualizar, name='cliente_actualizar'),
+    path('usuario/clientes/crear/', core_views.cliente_crear, name='cliente_crear'),
+    path('usuario/clientes/exportar/', core_views.clientes_exportar, name='clientes_exportar'),
+    path('usuario/clientes/importar/', core_views.clientes_importar, name='clientes_importar'),
+
+
+    # Clientes sin CFDI
+    path('usuario/clientes-sin-cfdi/', core_views.clientes_sin_cfdi_lista, name='usuario_clientes_sin_cfdi'),
+    path('usuario/clientes-sin-cfdi/data/', core_views.clientes_sin_cfdi_data, name='clientes_sin_cfdi_data'),
+    path('usuario/clientes-sin-cfdi/detalle/<int:pk>/', core_views.cliente_sin_cfdi_detalle, name='cliente_sin_cfdi_detalle'),
+    path('usuario/clientes-sin-cfdi/actualizar/<int:pk>/', core_views.cliente_sin_cfdi_actualizar, name='cliente_sin_cfdi_actualizar'),
+    path('usuario/clientes-sin-cfdi/crear/', core_views.cliente_sin_cfdi_crear, name='cliente_sin_cfdi_crear'),
+    path('usuario/clientes-sin-cfdi/exportar/', core_views.clientes_sin_cfdi_exportar, name='clientes_sin_cfdi_exportar'),
+    path('usuario/clientes-sin-cfdi/importar/', core_views.clientes_sin_cfdi_importar, name='clientes_sin_cfdi_importar'),
+
 
     path('usuario/opiniones/', core_views.usuario_opiniones, name='usuario_opiniones'),
     path('usuario/constancias/', core_views.usuario_constancias, name='usuario_constancias'),
