@@ -3344,9 +3344,301 @@ def clientes_sin_cfdi_importar(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+import re
+from datetime import datetime
+from django.db import connections
+from django.http import JsonResponse, HttpResponse, FileResponse, Http404
+from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.conf import settings
+import os
+import PyPDF2
+import io
+import csv
+from .decorators import usuario_required
+
+# ========== OPINIONES DE CUMPLIMIENTO ==========
 @usuario_required
 def usuario_opiniones(request):
-    return render(request, 'core/usuario/en_construccion.html')
+    """Página principal del listado de opiniones."""
+    return render(request, 'core/usuario/opiniones_lista.html')
+
+@usuario_required
+def usuario_opiniones_data(request):
+    """Devuelve JSON con los datos consolidados de todas las entidades."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    # Consultas consolidadas
+    with connections[db_name].cursor() as cursor:
+        # Proveedores
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'proveedor' as tipo
+            FROM proveedores
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows = list(cursor.fetchall())
+
+        # Proveedores sin CFDI
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'proveedor_sin_cfdi' as tipo
+            FROM proveedores_sin_cfdi
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+        # Clientes
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'cliente' as tipo
+            FROM clientes
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+        # Clientes sin CFDI
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'cliente_sin_cfdi' as tipo
+            FROM clientes_sin_cfdi
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+    data = []
+    for row in rows:
+        data.append({
+            'rfc': row[0] or '',
+            'razon_social': row[1] or '',
+            'estatus': row[2] or 'SinRespuesta',
+            'fecha_opinion': row[3].strftime('%Y-%m-%d') if row[3] else '',
+            'opinion': row[4] or 0,
+            'tipo': row[5],
+        })
+    return JsonResponse(data, safe=False)
+
+def extraer_datos_pdf(pdf_file):
+    """Extrae fecha y resultado del PDF de opinión."""
+    try:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        texto = ""
+        for page in pdf_reader.pages:
+            texto += page.extract_text()
+        # Buscar fecha en formato "15 de abril de 2026 a las 11:11 horas"
+        patron_fecha = r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s+a\s+las\s+(\d{1,2}:\d{2})\s+horas'
+        match_fecha = re.search(patron_fecha, texto)
+        if not match_fecha:
+            raise ValueError("No se pudo encontrar la fecha en el PDF")
+        dia = int(match_fecha.group(1))
+        mes_str = match_fecha.group(2).lower()
+        anio = int(match_fecha.group(3))
+        meses = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+            'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        }
+        mes = meses.get(mes_str, 1)
+        fecha_opinion = datetime(anio, mes, dia).date()
+
+        # Buscar resultado en cadena original: "|...|...|...|P||" o "|...|...|...|N||"
+        patron_resultado = r'\|[^|]*\|[^|]*\|[^|]*\|([PN])\|\|'
+        match_res = re.search(patron_resultado, texto)
+        resultado = 'Positivo' if match_res and match_res.group(1) == 'P' else 'Negativo' if match_res and match_res.group(1) == 'N' else 'SinRespuesta'
+        return fecha_opinion, resultado
+    except Exception as e:
+        raise ValueError(f"Error al procesar PDF: {str(e)}")
+
+@usuario_required
+@csrf_exempt
+def usuario_opiniones_subir(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    if 'pdf' not in request.FILES:
+        return JsonResponse({'error': 'No se envió ningún archivo'}, status=400)
+
+    archivo = request.FILES['pdf']
+    if not archivo.name.endswith('.pdf'):
+        return JsonResponse({'error': 'Solo se aceptan archivos PDF'}, status=400)
+
+    rfc = request.POST.get('rfc')
+    tipo = request.POST.get('tipo')
+    if not rfc or not tipo:
+        return JsonResponse({'error': 'Faltan datos (RFC o tipo)'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    # 1. Leer el contenido completo del archivo en bytes
+    archivo_bytes = archivo.read()
+    if not archivo_bytes:
+        return JsonResponse({'error': 'El archivo está vacío'}, status=400)
+
+    # 2. Extraer datos del PDF usando los bytes (sin modificar el archivo original)
+    try:
+        import io
+        from PyPDF2 import PdfReader
+        import re
+        from datetime import datetime
+
+        pdf_io = io.BytesIO(archivo_bytes)
+        reader = PdfReader(pdf_io)
+        texto = ""
+        for page in reader.pages:
+            texto += page.extract_text()
+
+        # Buscar fecha en formato "15 de abril de 2026 a las 11:11 horas"
+        patron_fecha = r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s+a\s+las\s+(\d{1,2}:\d{2})\s+horas'
+        match_fecha = re.search(patron_fecha, texto)
+        if not match_fecha:
+            raise ValueError("No se pudo encontrar la fecha en el PDF")
+        dia = int(match_fecha.group(1))
+        mes_str = match_fecha.group(2).lower()
+        anio = int(match_fecha.group(3))
+        meses = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+            'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        }
+        mes = meses.get(mes_str, 1)
+        fecha_opinion = datetime(anio, mes, dia).date()
+
+        # Buscar resultado en cadena original: "|...|...|...|P||" o "|...|...|...|N||"
+        patron_resultado = r'\|[^|]*\|[^|]*\|[^|]*\|([PN])\|\|'
+        match_res = re.search(patron_resultado, texto)
+        resultado = 'Positivo' if match_res and match_res.group(1) == 'P' else 'Negativo' if match_res and match_res.group(1) == 'N' else 'SinRespuesta'
+
+    except Exception as e:
+        return JsonResponse({'error': f'Error al procesar PDF: {str(e)}'}, status=400)
+
+    # 3. Guardar el archivo en media/opinion/<rfc>/<año>/<mes>/
+    año = fecha_opinion.year
+    mes = fecha_opinion.month
+    ruta = os.path.join('opinion', rfc, str(año), f"{mes:02d}")
+    nombre_archivo = f"{rfc}_{fecha_opinion.strftime('%Y%m%d')}.pdf"
+    path = default_storage.save(os.path.join(ruta, nombre_archivo), ContentFile(archivo_bytes))
+
+    # 4. Guardar en historial y actualizar la tabla correspondiente
+    tabla_map = {
+        'proveedor': 'proveedores',
+        'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+        'cliente': 'clientes',
+        'cliente_sin_cfdi': 'clientes_sin_cfdi'
+    }
+    tabla = tabla_map.get(tipo)
+    if not tabla:
+        return JsonResponse({'error': 'Tipo de entidad inválido'}, status=400)
+
+    try:
+        with connections[db_name].cursor() as cursor:
+            # Insertar en historial
+            cursor.execute("""
+                INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
+                VALUES (%s, %s, %s, %s, %s)
+            """, [rfc, tipo, path, resultado, fecha_opinion])
+
+            # Actualizar la tabla principal
+            sql = f"""
+                UPDATE {tabla}
+                SET Estatus = %s, fecha_opinion = %s, opinion = 1
+                WHERE RFC = %s AND rfc_identy = %s
+            """
+            cursor.execute(sql, [resultado, fecha_opinion, rfc, rfc_empresa])
+            if cursor.rowcount == 0:
+                return JsonResponse({'error': 'No se encontró el registro para actualizar'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': f'Error en base de datos: {str(e)}'}, status=500)
+
+    return JsonResponse({'success': True, 'fecha': fecha_opinion.strftime('%Y-%m-%d'), 'resultado': resultado})
+
+
+
+@usuario_required
+def usuario_opiniones_historial(request, rfc):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, archivo_pdf, resultado, fecha_opinion, created_at
+            FROM opiniones_historial
+            WHERE rfc = %s
+            ORDER BY created_at DESC
+        """, [rfc])
+        rows = cursor.fetchall()
+
+    data = []
+    for row in rows:
+        data.append({
+            'id': row[0],
+            'archivo': row[1],
+            'resultado': row[2],
+            'fecha_opinion': row[3].strftime('%Y-%m-%d') if row[3] else '',
+            'created_at': row[4].strftime('%d/%m/%Y %H:%M') if row[4] else '',
+        })
+    return JsonResponse(data, safe=False)
+
+
+from django.http import FileResponse, Http404
+import os
+
+@usuario_required
+def usuario_opiniones_descargar_historial(request, id_historial):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        raise Http404("No se ha identificado la empresa")
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT archivo_pdf FROM opiniones_historial
+            WHERE id = %s
+        """, [id_historial])
+        row = cursor.fetchone()
+        if not row:
+            raise Http404("Registro no encontrado")
+        pdf_path = row[0]
+
+    file_path = os.path.join(settings.MEDIA_ROOT, pdf_path)
+    if not os.path.exists(file_path):
+        raise Http404("Archivo no encontrado")
+    return FileResponse(open(file_path, 'rb'), content_type='application/pdf', as_attachment=True, filename=os.path.basename(pdf_path))
+
+
+@usuario_required
+def usuario_opiniones_descargar_pdf(request, rfc):
+    """Descarga el último PDF de opinión para un RFC."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        raise Http404("No se ha identificado la empresa")
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT archivo_pdf FROM opiniones_historial
+            WHERE rfc = %s
+            ORDER BY created_at DESC LIMIT 1
+        """, [rfc])
+        row = cursor.fetchone()
+        if not row:
+            raise Http404("No hay opinión cargada para este RFC")
+        pdf_path = row[0]
+
+    file_path = os.path.join(settings.MEDIA_ROOT, pdf_path)
+    if not os.path.exists(file_path):
+        raise Http404("Archivo no encontrado")
+
+    return FileResponse(open(file_path, 'rb'), content_type='application/pdf', as_attachment=True, filename=os.path.basename(pdf_path))
+
+
+
+
+
 
 @usuario_required
 def usuario_constancias(request):

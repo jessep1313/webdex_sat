@@ -128,7 +128,15 @@ urlpatterns = [
     path('usuario/clientes-sin-cfdi/importar/', core_views.clientes_sin_cfdi_importar, name='clientes_sin_cfdi_importar'),
 
 
+    # Opiniones de cumplimiento
     path('usuario/opiniones/', core_views.usuario_opiniones, name='usuario_opiniones'),
+    path('usuario/opiniones/data/', core_views.usuario_opiniones_data, name='usuario_opiniones_data'),
+    path('usuario/opiniones/subir/', core_views.usuario_opiniones_subir, name='usuario_opiniones_subir'),
+    path('usuario/opiniones/historial/<str:rfc>/', core_views.usuario_opiniones_historial, name='usuario_opiniones_historial'),
+    path('usuario/opiniones/descargar/<str:rfc>/', core_views.usuario_opiniones_descargar_pdf, name='usuario_opiniones_descargar_pdf'),
+    path('usuario/opiniones/descargar-historial/<int:id_historial>/', core_views.usuario_opiniones_descargar_historial, name='usuario_opiniones_descargar_historial'),
+
+
     path('usuario/constancias/', core_views.usuario_constancias, name='usuario_constancias'),
     path('usuario/validacion-domicilio/', core_views.usuario_validacion_domicilio, name='usuario_validacion_domicilio'),
     path('usuario/articulo69/', core_views.usuario_articulo69, name='usuario_articulo69'),

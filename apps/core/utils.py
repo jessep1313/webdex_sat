@@ -281,6 +281,16 @@ CREATE TABLE IF NOT EXISTS log_correos (
     fecha DATE NOT NULL,
     documento VARCHAR(100) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS opiniones_historial (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rfc VARCHAR(255) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,  -- 'proveedor', 'cliente', 'proveedor_sin_cfdi', 'cliente_sin_cfdi'
+    archivo_pdf VARCHAR(500) NOT NULL,
+    resultado VARCHAR(20) NOT NULL,  -- 'Positivo', 'Negativo'
+    fecha_opinion DATE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 """
     with connections[db_name].cursor() as cursor:
         for statement in sql_tables.split(';'):

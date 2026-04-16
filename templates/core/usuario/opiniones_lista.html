@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Opiniones de Cumplimiento{% endblock %}
+{% block content_title %}Opiniones de Cumplimiento{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Listado de entidades</h3>
+    </div>
+    <div class="card-body">
+        <table id="tablaOpiniones" class="table table-bordered table-striped" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Razón Social</th>
+                    <th>RFC</th>
+                    <th>Estatus</th>
+                    <th>Fecha opinión</th>
+                    <th>Opinión</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal para subir PDF -->
+<div class="modal fade" id="modalSubir" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Subir opinión de cumplimiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formSubir" enctype="multipart/form-data">
+                    <input type="hidden" id="subir_rfc">
+                    <input type="hidden" id="subir_tipo">
+                    <div class="mb-3">
+                        <label for="pdfFile" class="form-label">Archivo PDF</label>
+                        <input type="file" class="form-control" id="pdfFile" accept=".pdf" required>
+                    </div>
+                </form>
+                <div id="subirResultado" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSubir">Subir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para historial -->
+<div class="modal fade" id="modalHistorial" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historial de opiniones</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="historialContenido"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    let dataTable;
+
+    function cargarTabla() {
+        $.ajax({
+            url: "{% url 'usuario_opiniones_data' %}",
+            method: "GET",
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(data) {
+                if (dataTable) dataTable.clear().destroy();
+                dataTable = $('#tablaOpiniones').DataTable({
+                    data: data,
+                    columns: [
+                        { data: 'razon_social' },
+                        { data: 'rfc' },
+                        { data: 'estatus' },
+                        { data: 'fecha_opinion' },
+                        {
+                            data: 'opinion',
+                            render: function(opinion, type, row) {
+                                if (opinion == 1) {
+                                    // Enlace de descarga usando la URL de descarga por RFC
+                                    let url = "{% url 'usuario_opiniones_descargar_pdf' 'RFC_PLACEHOLDER' %}".replace('RFC_PLACEHOLDER', row.rfc);
+                                    return `<a href="${url}" class="text-danger" title="Descargar opinión"><i class="bi bi-file-pdf" style="font-size: 1.5rem;"></i></a>`;
+                                } else {
+                                    return '<i class="bi bi-file-pdf text-secondary" style="font-size: 1.5rem;" title="Sin opinión"></i>';
+                                }
+                            }
+                        },
+                        {
+                            data: null,
+                            render: function(row) {
+                                return `
+                                    <button class="btn btn-sm btn-info btn-upload" data-rfc="${row.rfc}" data-tipo="${row.tipo}" title="Subir opinión">
+                                        <i class="bi bi-upload"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary btn-historial" data-rfc="${row.rfc}" title="Ver historial">
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary btn-sat" title="Obtener OP del SAT (próximamente)">
+                                        <i class="bi bi-cloud-download"></i>
+                                    </button>
+                                `;
+                            }
+                        }
+                    ],
+                    language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                    pageLength: 20,
+                    order: [[1, 'asc']],
+                    columnDefs: [{ orderable: false, targets: 5 }]
+                });
+            },
+            error: function() { alert('Error al cargar datos'); }
+        });
+    }
+
+    $(document).ready(function() {
+        cargarTabla();
+
+        $('#tablaOpiniones').on('click', '.btn-upload', function() {
+            const rfc = $(this).data('rfc');
+            const tipo = $(this).data('tipo');
+            $('#subir_rfc').val(rfc);
+            $('#subir_tipo').val(tipo);
+            $('#pdfFile').val('');
+            $('#subirResultado').hide();
+            $('#modalSubir').modal('show');
+        });
+
+        $('#btnSubir').click(function() {
+            const file = $('#pdfFile')[0].files[0];
+            if (!file) {
+                alert('Seleccione un archivo PDF');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('pdf', file);
+            formData.append('rfc', $('#subir_rfc').val());
+            formData.append('tipo', $('#subir_tipo').val());
+            $.ajax({
+                url: "{% url 'usuario_opiniones_subir' %}",
+                method: "POST",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(resp) {
+                    if (resp.success) {
+                        $('#subirResultado').html(`<div class="alert alert-success">Subido correctamente. Fecha: ${resp.fecha}, Resultado: ${resp.resultado}</div>`).show();
+                        setTimeout(function() {
+                            $('#modalSubir').modal('hide');
+                            cargarTabla();
+                        }, 1500);
+                    } else {
+                        $('#subirResultado').html(`<div class="alert alert-danger">Error: ${resp.error}</div>`).show();
+                    }
+                },
+                error: function(xhr) {
+                    let msg = 'Error al subir';
+                    if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
+                    $('#subirResultado').html(`<div class="alert alert-danger">${msg}</div>`).show();
+                }
+            });
+        });
+
+        $('#tablaOpiniones').on('click', '.btn-historial', function() {
+            const rfc = $(this).data('rfc');
+            $.ajax({
+                url: "{% url 'usuario_opiniones_historial' 0 %}".replace('0', rfc),
+                method: "GET",
+                success: function(data) {
+                    let html = '<table class="table table-sm">';
+                    html += '<thead><tr><th>Archivo</th><th>Resultado</th><th>Fecha opinión</th><th>Fecha carga</th></tr></thead><tbody>';
+                    if (data.length === 0) {
+                        html += '<tr><td colspan="4">No hay registros históricos.</td></tr>';
+                    } else {
+                        data.forEach(item => {
+                            const url = "{% url 'usuario_opiniones_descargar_historial' 0 %}".replace('/0/', `/${item.id}/`);
+                            html += `<tr>
+                                <td><a href="${url}" target="_blank">Ver PDF</a></td>
+                                <td>${item.resultado}</td>
+                                <td>${item.fecha_opinion}</td>
+                                <td>${item.created_at}</td>
+                            </tr>`;
+                        });
+                    }
+                    html += '</tbody></table>';
+                    $('#historialContenido').html(html);
+                    $('#modalHistorial').modal('show');
+                },
+                error: function() { alert('Error al cargar historial'); }
+            });
+        });
+    });
+</script>
+{% endblock %}
