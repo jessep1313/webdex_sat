@@ -4157,9 +4157,316 @@ def usuario_opiniones_obtener_sat_status(request, task_id):
 
 
 
+import os
+import re
+from datetime import datetime
+from PyPDF2 import PdfReader
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.db import connections
+from django.http import JsonResponse, HttpResponse, Http404
+from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .decorators import usuario_required
+
+# ========== CONSTANCIAS ==========
 @usuario_required
 def usuario_constancias(request):
-    return render(request, 'core/usuario/en_construccion.html')
+    return render(request, 'core/usuario/constancias_lista.html')
+
+@usuario_required
+def usuario_constancias_data(request):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        # Proveedores
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_constancia, constancia, 'proveedor' as tipo
+            FROM proveedores
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows = list(cursor.fetchall())
+
+        # Proveedores sin CFDI
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_constancia, constancia, 'proveedor_sin_cfdi' as tipo
+            FROM proveedores_sin_cfdi
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+        # Clientes
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_constancia, constancia, 'cliente' as tipo
+            FROM clientes
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+        # Clientes sin CFDI
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_constancia, constancia, 'cliente_sin_cfdi' as tipo
+            FROM clientes_sin_cfdi
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+    data = []
+    for row in rows:
+        data.append({
+            'rfc': row[0] or '',
+            'razon_social': row[1] or '',
+            'estatus': row[2] or 'SinRespuesta',
+            'fecha_constancia': row[3].strftime('%Y-%m-%d') if row[3] else '',
+            'constancia': row[4] or 0,
+            'tipo': row[5],
+        })
+    return JsonResponse(data, safe=False)
+
+def extraer_datos_constancia(pdf_file):
+    """Extrae RFC y datos de domicilio de un PDF de constancia."""
+    try:
+        reader = PdfReader(pdf_file)
+        texto = ""
+        for page in reader.pages:
+            texto += page.extract_text()
+
+        # Extraer RFC
+        rfc_match = re.search(r'RFC:\s*([A-Z0-9]{12,13})', texto, re.IGNORECASE)
+        if not rfc_match:
+            raise ValueError("No se pudo encontrar el RFC en el documento")
+        rfc = rfc_match.group(1).upper()
+
+        # Extraer datos de ubicación
+        cp_match = re.search(r'Código Postal:\s*(\d{5})', texto, re.IGNORECASE)
+        codigoPostal = cp_match.group(1) if cp_match else ''
+
+        calle_match = re.search(r'Nombre de Vialidad:\s*([^\n]+)', texto, re.IGNORECASE)
+        calle = calle_match.group(1).strip() if calle_match else ''
+
+        noExt_match = re.search(r'Número Exterior:\s*([^\n]+)', texto, re.IGNORECASE)
+        noExt = noExt_match.group(1).strip() if noExt_match else ''
+
+        noInt_match = re.search(r'Número Interior:\s*([^\n]+)', texto, re.IGNORECASE)
+        noInt = noInt_match.group(1).strip() if noInt_match else ''
+
+        colonia_match = re.search(r'Nombre de la Colonia:\s*([^\n]+)', texto, re.IGNORECASE)
+        colonia = colonia_match.group(1).strip() if colonia_match else ''
+
+        municipio_match = re.search(r'Nombre del Municipio o Demarcación Territorial:\s*([^\n]+)', texto, re.IGNORECASE)
+        municipio = municipio_match.group(1).strip() if municipio_match else ''
+
+        estado_match = re.search(r'Nombre del Estado:\s*([^\n]+)', texto, re.IGNORECASE)
+        estado = estado_match.group(1).strip() if estado_match else ''
+
+        ciudad_match = re.search(r'Nombre de la Localidad:\s*([^\n]+)', texto, re.IGNORECASE)
+        ciudad = ciudad_match.group(1).strip() if ciudad_match else ''
+
+        # Fecha de la constancia (del documento, se puede extraer de alguna parte o usar fecha actual)
+        # Por simplicidad, usamos fecha actual. Si el PDF tiene fecha, se puede extraer.
+        fecha_constancia = datetime.now().date()
+
+        return {
+            'rfc': rfc,
+            'fecha_constancia': fecha_constancia,
+            'codigoPostal': codigoPostal,
+            'calle': calle,
+            'noInt': noInt,
+            'noExt': noExt,
+            'colonia': colonia,
+            'estado': estado,
+            'municipio': municipio,
+            'ciudad': ciudad,
+        }
+    except Exception as e:
+        raise ValueError(f"Error al procesar el PDF: {str(e)}")
+
+@usuario_required
+@csrf_exempt
+def usuario_constancias_subir(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    if 'pdf' not in request.FILES:
+        return JsonResponse({'error': 'No se envió ningún archivo'}, status=400)
+
+    archivo = request.FILES['pdf']
+    if not archivo.name.endswith('.pdf'):
+        return JsonResponse({'error': 'Solo se aceptan archivos PDF'}, status=400)
+
+    rfc_seleccionado = request.POST.get('rfc')
+    tipo = request.POST.get('tipo')
+    if not rfc_seleccionado or not tipo:
+        return JsonResponse({'error': 'Faltan datos (RFC o tipo)'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    # Extraer datos del PDF
+    try:
+        datos = extraer_datos_constancia(archivo)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    # Verificar que el RFC extraído coincida con el seleccionado
+    if datos['rfc'] != rfc_seleccionado:
+        # Devolver los datos extraídos para que el frontend muestre un modal de confirmación
+        return JsonResponse({
+            'error': 'RFC no coincide',
+            'extracted_rfc': datos['rfc'],
+            'extracted_data': {
+                'codigoPostal': datos['codigoPostal'],
+                'calle': datos['calle'],
+                'noInt': datos['noInt'],
+                'noExt': datos['noExt'],
+                'colonia': datos['colonia'],
+                'estado': datos['estado'],
+                'municipio': datos['municipio'],
+                'ciudad': datos['ciudad'],
+            }
+        }, status=409)
+
+    # Guardar el PDF en la ruta definitiva
+    año = datos['fecha_constancia'].year
+    mes = datos['fecha_constancia'].month
+    ruta = os.path.join('constancia', rfc_seleccionado, str(año), f"{mes:02d}")
+    nombre_archivo = f"{rfc_seleccionado}_{datos['fecha_constancia'].strftime('%Y%m%d')}.pdf"
+    archivo.seek(0)  # Reiniciar puntero
+    path = default_storage.save(os.path.join(ruta, nombre_archivo), ContentFile(archivo.read()))
+
+    # Mapeo de tipo a tabla
+    tabla_map = {
+        'proveedor': 'proveedores',
+        'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+        'cliente': 'clientes',
+        'cliente_sin_cfdi': 'clientes_sin_cfdi'
+    }
+    tabla = tabla_map.get(tipo)
+    if not tabla:
+        return JsonResponse({'error': 'Tipo de entidad inválido'}, status=400)
+
+    # Actualizar la base de datos
+    try:
+        with connections[db_name].cursor() as cursor:
+            # Insertar en historial
+            cursor.execute("""
+                INSERT INTO constancias_historial 
+                (rfc, tipo, archivo_pdf, fecha_constancia, codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, [
+                rfc_seleccionado, tipo, path, datos['fecha_constancia'],
+                datos['codigoPostal'], datos['calle'], datos['noInt'], datos['noExt'],
+                datos['colonia'], datos['estado'], datos['municipio'], datos['ciudad']
+            ])
+
+            # Actualizar la tabla principal
+            sql = f"""
+                UPDATE {tabla}
+                SET constancia = 1, fecha_constancia = %s,
+                    codigoPostal = %s, calle = %s, noInt = %s, noExt = %s,
+                    colonia = %s, estado = %s, municipio = %s, ciudad = %s
+                WHERE RFC = %s AND rfc_identy = %s
+            """
+            cursor.execute(sql, [
+                datos['fecha_constancia'],
+                datos['codigoPostal'], datos['calle'], datos['noInt'], datos['noExt'],
+                datos['colonia'], datos['estado'], datos['municipio'], datos['ciudad'],
+                rfc_seleccionado, rfc_empresa
+            ])
+            if cursor.rowcount == 0:
+                return JsonResponse({'error': 'No se encontró el registro para actualizar'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': f'Error en base de datos: {str(e)}'}, status=500)
+
+    return JsonResponse({'success': True, 'fecha': datos['fecha_constancia'].strftime('%Y-%m-%d')})
+
+@usuario_required
+def usuario_constancias_historial(request, rfc):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, archivo_pdf, fecha_constancia, created_at,
+                   codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad
+            FROM constancias_historial
+            WHERE rfc = %s
+            ORDER BY created_at DESC
+        """, [rfc])
+        rows = cursor.fetchall()
+
+    data = []
+    for row in rows:
+        data.append({
+            'id': row[0],
+            'archivo': row[1],
+            'fecha_constancia': row[2].strftime('%Y-%m-%d') if row[2] else '',
+            'created_at': row[3].strftime('%d/%m/%Y %H:%M') if row[3] else '',
+            'codigoPostal': row[4] or '',
+            'calle': row[5] or '',
+            'noInt': row[6] or '',
+            'noExt': row[7] or '',
+            'colonia': row[8] or '',
+            'estado': row[9] or '',
+            'municipio': row[10] or '',
+            'ciudad': row[11] or '',
+        })
+    return JsonResponse(data, safe=False)
+
+@usuario_required
+def usuario_constancias_descargar_pdf(request, rfc):
+    """Descarga la última constancia subida para un RFC."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        raise Http404("No se ha identificado la empresa")
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT archivo_pdf FROM constancias_historial
+            WHERE rfc = %s
+            ORDER BY created_at DESC LIMIT 1
+        """, [rfc])
+        row = cursor.fetchone()
+        if not row:
+            raise Http404("No hay constancia cargada para este RFC")
+        pdf_path = row[0]
+
+    file_path = os.path.join(settings.MEDIA_ROOT, pdf_path)
+    if not os.path.exists(file_path):
+        raise Http404("Archivo no encontrado")
+    return FileResponse(open(file_path, 'rb'), content_type='application/pdf', as_attachment=True, filename=os.path.basename(pdf_path))
+
+@usuario_required
+def usuario_constancias_descargar_historial(request, id_historial):
+    """Descarga una constancia específica del historial por ID."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        raise Http404("No se ha identificado la empresa")
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT archivo_pdf FROM constancias_historial WHERE id = %s", [id_historial])
+        row = cursor.fetchone()
+        if not row:
+            raise Http404("Registro no encontrado")
+        pdf_path = row[0]
+
+    file_path = os.path.join(settings.MEDIA_ROOT, pdf_path)
+    if not os.path.exists(file_path):
+        raise Http404("Archivo no encontrado")
+    return FileResponse(open(file_path, 'rb'), content_type='application/pdf', as_attachment=True, filename=os.path.basename(pdf_path))
+
+
+    
 
 @usuario_required
 def usuario_validacion_domicilio(request):

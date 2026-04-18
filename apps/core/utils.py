@@ -291,6 +291,25 @@ CREATE TABLE IF NOT EXISTS opiniones_historial (
     fecha_opinion DATE NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Tabla constancias_historial
+CREATE TABLE IF NOT EXISTS constancias_historial (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rfc VARCHAR(255) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
+    archivo_pdf VARCHAR(500) NOT NULL,
+    fecha_constancia DATE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    codigoPostal VARCHAR(255),
+    calle VARCHAR(255),
+    noInt VARCHAR(255),
+    noExt VARCHAR(255),
+    colonia VARCHAR(255),
+    estado VARCHAR(255),
+    municipio VARCHAR(255),
+    ciudad VARCHAR(255)
+);
+
 """
     with connections[db_name].cursor() as cursor:
         for statement in sql_tables.split(';'):

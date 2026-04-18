@@ -138,7 +138,16 @@ urlpatterns = [
     path('usuario/opiniones/obtener-sat/', core_views.usuario_opiniones_obtener_sat, name='usuario_opiniones_obtener_sat'),
     path('usuario/opiniones/obtener-sat/status/<str:task_id>/', core_views.usuario_opiniones_obtener_sat_status, name='usuario_opiniones_obtener_sat_status'),
 
+    # Constancias
     path('usuario/constancias/', core_views.usuario_constancias, name='usuario_constancias'),
+    path('usuario/constancias/data/', core_views.usuario_constancias_data, name='usuario_constancias_data'),
+    path('usuario/constancias/subir/', core_views.usuario_constancias_subir, name='usuario_constancias_subir'),
+    path('usuario/constancias/historial/<str:rfc>/', core_views.usuario_constancias_historial, name='usuario_constancias_historial'),
+    path('usuario/constancias/descargar/<str:rfc>/', core_views.usuario_constancias_descargar_pdf, name='usuario_constancias_descargar_pdf'),
+    path('usuario/constancias/descargar-historial/<int:id_historial>/', core_views.usuario_constancias_descargar_historial, name='usuario_constancias_descargar_historial'),
+
+
+
     path('usuario/validacion-domicilio/', core_views.usuario_validacion_domicilio, name='usuario_validacion_domicilio'),
     path('usuario/articulo69/', core_views.usuario_articulo69, name='usuario_articulo69'),
     path('usuario/articulo69b/', core_views.usuario_articulo69b, name='usuario_articulo69b'),
