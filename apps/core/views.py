@@ -4466,20 +4466,350 @@ def usuario_constancias_descargar_historial(request, id_historial):
     return FileResponse(open(file_path, 'rb'), content_type='application/pdf', as_attachment=True, filename=os.path.basename(pdf_path))
 
 
-    
+
 
 @usuario_required
 def usuario_validacion_domicilio(request):
-    return render(request, 'core/usuario/en_construccion.html')
+    return render(request, 'core/usuario/validacion_domicilio_lista.html')
 
+@usuario_required
+def usuario_validacion_domicilio_data(request):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        # Proveedores
+        cursor.execute("""
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad
+            FROM proveedores
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows = list(cursor.fetchall())
+
+        # Proveedores sin CFDI
+        cursor.execute("""
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad
+            FROM proveedores_sin_cfdi
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+        # Clientes
+        cursor.execute("""
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad
+            FROM clientes
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+        # Clientes sin CFDI
+        cursor.execute("""
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad
+            FROM clientes_sin_cfdi
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+    data = []
+    for row in rows:
+        data.append({
+            'rfc': row[0] or '',
+            'razon_social': row[1] or '',
+            'calle': row[2] or '',
+            'noExt': row[3] or '',
+            'noInt': row[4] or '',
+            'colonia': row[5] or '',
+            'codigoPostal': row[6] or '',
+            'municipio': row[7] or '',
+            'estado': row[8] or '',
+            'ciudad': row[9] or '',
+        })
+    return JsonResponse(data, safe=False)
+
+
+import threading
+import uuid
+from datetime import datetime
+from django.db import connections
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .decorators import usuario_required
+from .utils import obtener_fecha_publicacion_sat, descargar_csv, obtener_rfcs_existentes
+
+
+tasks_status = {}  # Diccionario para almacenar estado de tareas
+
+def run_articulo69_task(task_id, db_name):
+    logs = []
+    tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
+    try:
+        logs.append("🚀 Iniciando actualización de Artículo 69...")
+        fecha_publicacion = obtener_fecha_publicacion_sat(1)
+        logs.append(f"📅 Fecha publicación: {fecha_publicacion}")
+        urls = [
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGR/Exigibles.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGR/Firmes.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGR/No_localizados.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/AGR/03_02_26/Sentencias.csv'
+        ]
+        rfcs_validos = obtener_rfcs_existentes(db_name)
+        logs.append(f"🔍 RFCs válidos en la empresa: {len(rfcs_validos)}")
+        all_records = {}
+        for url in urls:
+            logs.append(f"📥 Descargando {url}...")
+            data = descargar_csv(url)
+            logs.append(f"   {len(data)} registros.")
+            for row in data:
+                rfc = row.get('RFC', '').strip()
+                if rfc and rfc in rfcs_validos:
+                    nombre = row.get('RAZON SOCIAL', row.get('Nombre del Contribuyente', '')).strip()
+                    supuesto = row.get('SUPUESTO', '').strip()
+                    # Truncar a 255 caracteres por si acaso
+                    nombre = nombre[:255]
+                    supuesto = supuesto[:255]
+                    if rfc not in all_records:
+                        all_records[rfc] = {'nombre': nombre, 'supuesto': supuesto}
+        logs.append(f"📊 RFCs a insertar: {len(all_records)}")
+        fecha_validacion = datetime.now().date()
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("DELETE FROM articulo69")
+            for rfc, info in all_records.items():
+                cursor.execute("""
+                    INSERT INTO articulo69 (rfc, nombre, tipo_supuesto, fecha_validacion, fecha_publicacion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, info['nombre'], info['supuesto'], fecha_validacion, fecha_publicacion])
+        logs.append("✅ Artículo 69 actualizado correctamente.")
+        tasks_status[task_id]['success'] = True
+    except Exception as e:
+        logs.append(f"❌ Error: {str(e)}")
+        tasks_status[task_id]['error'] = str(e)
+    finally:
+        tasks_status[task_id]['finished'] = True
+        tasks_status[task_id]['logs'] = logs
+
+
+def run_articulo69b_task(task_id, db_name):
+    logs = []
+    tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
+    try:
+        logs.append("🚀 Iniciando actualización de Artículo 69-B...")
+        fecha_publicacion = obtener_fecha_publicacion_sat(2)
+        logs.append(f"📅 Fecha publicación: {fecha_publicacion}")
+        urls = [
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Definitivos.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Desvirtuados.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Presuntos.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/SentenciasFavorables.csv'
+        ]
+        rfcs_validos = obtener_rfcs_existentes(db_name)
+        logs.append(f"🔍 RFCs válidos en la empresa: {len(rfcs_validos)}")
+        all_records = {}
+        for url in urls:
+            logs.append(f"📥 Descargando {url}...")
+            data = descargar_csv(url)
+            logs.append(f"   {len(data)} registros.")
+            for row in data:
+                rfc = row.get('RFC', '').strip()
+                if rfc and rfc in rfcs_validos:
+                    nombre = row.get('Nombre del Contribuyente', '').strip()
+                    situacion = row.get('Situación del contribuyente', '').strip()
+                    nombre = nombre[:255]
+                    situacion = situacion[:255]
+                    if rfc not in all_records:
+                        all_records[rfc] = {'nombre': nombre, 'situacion': situacion}
+        logs.append(f"📊 RFCs a insertar: {len(all_records)}")
+        fecha_validacion = datetime.now().date()
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("DELETE FROM articulo69b")
+            for rfc, info in all_records.items():
+                cursor.execute("""
+                    INSERT INTO articulo69b (rfc, nombre, tipo_supuesto, fecha_validacion, fecha_publicacion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, info['nombre'], info['situacion'], fecha_validacion, fecha_publicacion])
+        logs.append("✅ Artículo 69-B actualizado correctamente.")
+        tasks_status[task_id]['success'] = True
+    except Exception as e:
+        logs.append(f"❌ Error: {str(e)}")
+        tasks_status[task_id]['error'] = str(e)
+    finally:
+        tasks_status[task_id]['finished'] = True
+        tasks_status[task_id]['logs'] = logs
+
+
+
+def run_articulo69bis_task(task_id, db_name):
+    logs = []
+    tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
+    try:
+        logs.append("🚀 Iniciando actualización de Artículo 69-Bis...")
+        fecha_publicacion = obtener_fecha_publicacion_sat(3)
+        logs.append(f"📅 Fecha publicación: {fecha_publicacion}")
+        urls = [
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_Definitivo.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_SentenciaFa.csv'
+        ]
+        rfcs_validos = obtener_rfcs_existentes(db_name)
+        logs.append(f"🔍 RFCs válidos en la empresa: {len(rfcs_validos)}")
+        all_records = {}
+        for url in urls:
+            logs.append(f"📥 Descargando {url}...")
+            data = descargar_csv(url)
+            logs.append(f"   {len(data)} registros.")
+            for row in data:
+                rfc = row.get('RFC', '').strip()
+                if rfc and rfc in rfcs_validos:
+                    nombre = row.get('Nombre del Contribuyente', '').strip()
+                    situacion = row.get('Situación del contribuyente', '').strip()
+                    nombre = nombre[:255]
+                    situacion = situacion[:255]
+                    if rfc not in all_records:
+                        all_records[rfc] = {'nombre': nombre, 'situacion': situacion}
+        logs.append(f"📊 RFCs a insertar: {len(all_records)}")
+        fecha_validacion = datetime.now().date()
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("DELETE FROM articulo69bis")
+            for rfc, info in all_records.items():
+                cursor.execute("""
+                    INSERT INTO articulo69bis (rfc, nombre, tipo_supuesto, fecha_validacion, fecha_publicacion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, info['nombre'], info['situacion'], fecha_validacion, fecha_publicacion])
+        logs.append("✅ Artículo 69-Bis actualizado correctamente.")
+        tasks_status[task_id]['success'] = True
+    except Exception as e:
+        logs.append(f"❌ Error: {str(e)}")
+        tasks_status[task_id]['error'] = str(e)
+    finally:
+        tasks_status[task_id]['finished'] = True
+        tasks_status[task_id]['logs'] = logs
+
+
+# ================== ARTÍCULO 69 ==================
 @usuario_required
 def usuario_articulo69(request):
-    return render(request, 'core/usuario/en_construccion.html')
+    return render(request, 'core/usuario/articulo69_lista.html')
 
+@usuario_required
+def usuario_articulo69_data(request):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT rfc, nombre, tipo_supuesto, fecha_validacion, fecha_publicacion FROM articulo69 ORDER BY rfc")
+        rows = cursor.fetchall()
+    data = [{'rfc': r[0], 'nombre': r[1], 'tipo_supuesto': r[2], 'fecha_validacion': r[3].isoformat() if r[3] else '', 'fecha_publicacion': r[4].isoformat() if r[4] else ''} for r in rows]
+    return JsonResponse(data, safe=False)
+
+@usuario_required
+@csrf_exempt
+def usuario_articulo69_actualizar(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+    task_id = str(uuid.uuid4())
+    tasks_status[task_id] = {'logs': [], 'finished': False, 'success': False, 'error': None}
+    thread = threading.Thread(target=run_articulo69_task, args=(task_id, db_name))
+    thread.daemon = True
+    thread.start()
+    return JsonResponse({'task_id': task_id})
+
+@usuario_required
+def usuario_articulo69_status(request, task_id):
+    status = tasks_status.get(task_id)
+    if not status:
+        return JsonResponse({'error': 'Tarea no encontrada'}, status=404)
+    return JsonResponse({
+        'finished': status['finished'],
+        'logs': status['logs'],
+        'success': status.get('success', False),
+        'error': status.get('error')
+    })
+
+# ================== ARTÍCULO 69-B ==================
 @usuario_required
 def usuario_articulo69b(request):
-    return render(request, 'core/usuario/en_construccion.html')
+    return render(request, 'core/usuario/articulo69b_lista.html')
 
 @usuario_required
+def usuario_articulo69b_data(request):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT rfc, nombre, tipo_supuesto, fecha_validacion, fecha_publicacion FROM articulo69b ORDER BY rfc")
+        rows = cursor.fetchall()
+    data = [{'rfc': r[0], 'nombre': r[1], 'tipo_supuesto': r[2], 'fecha_validacion': r[3].isoformat() if r[3] else '', 'fecha_publicacion': r[4].isoformat() if r[4] else ''} for r in rows]
+    return JsonResponse(data, safe=False)
+
+@usuario_required
+@csrf_exempt
+def usuario_articulo69b_actualizar(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+    task_id = str(uuid.uuid4())
+    tasks_status[task_id] = {'logs': [], 'finished': False, 'success': False, 'error': None}
+    thread = threading.Thread(target=run_articulo69b_task, args=(task_id, db_name))
+    thread.daemon = True
+    thread.start()
+    return JsonResponse({'task_id': task_id})
+
+@usuario_required
+def usuario_articulo69b_status(request, task_id):
+    status = tasks_status.get(task_id)
+    if not status:
+        return JsonResponse({'error': 'Tarea no encontrada'}, status=404)
+    return JsonResponse({
+        'finished': status['finished'],
+        'logs': status['logs'],
+        'success': status.get('success', False),
+        'error': status.get('error')
+    })
+
+# ================== ARTÍCULO 69-BIS ==================
+@usuario_required
 def usuario_articulo69bis(request):
-    return render(request, 'core/usuario/en_construccion.html')
+    return render(request, 'core/usuario/articulo69bis_lista.html')
+
+@usuario_required
+def usuario_articulo69bis_data(request):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT rfc, nombre, tipo_supuesto, fecha_validacion, fecha_publicacion FROM articulo69bis ORDER BY rfc")
+        rows = cursor.fetchall()
+    data = [{'rfc': r[0], 'nombre': r[1], 'tipo_supuesto': r[2], 'fecha_validacion': r[3].isoformat() if r[3] else '', 'fecha_publicacion': r[4].isoformat() if r[4] else ''} for r in rows]
+    return JsonResponse(data, safe=False)
+
+@usuario_required
+@csrf_exempt
+def usuario_articulo69bis_actualizar(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+    task_id = str(uuid.uuid4())
+    tasks_status[task_id] = {'logs': [], 'finished': False, 'success': False, 'error': None}
+    thread = threading.Thread(target=run_articulo69bis_task, args=(task_id, db_name))
+    thread.daemon = True
+    thread.start()
+    return JsonResponse({'task_id': task_id})
+
+@usuario_required
+def usuario_articulo69bis_status(request, task_id):
+    status = tasks_status.get(task_id)
+    if not status:
+        return JsonResponse({'error': 'Tarea no encontrada'}, status=404)
+    return JsonResponse({
+        'finished': status['finished'],
+        'logs': status['logs'],
+        'success': status.get('success', False),
+        'error': status.get('error')
+    })

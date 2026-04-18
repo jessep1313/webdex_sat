@@ -249,8 +249,8 @@ CREATE TABLE IF NOT EXISTS cfdi_emitidos (
 
 -- Tabla articulo69
 CREATE TABLE IF NOT EXISTS articulo69 (
-    rfc VARCHAR(100) PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
+    rfc VARCHAR(255) PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
     tipo_supuesto VARCHAR(100) NOT NULL,
     fecha_validacion DATE NOT NULL,
     fecha_publicacion DATE NOT NULL
@@ -258,8 +258,8 @@ CREATE TABLE IF NOT EXISTS articulo69 (
 
 -- Tabla articulo69b
 CREATE TABLE IF NOT EXISTS articulo69b (
-    rfc VARCHAR(100) PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
+    rfc VARCHAR(255) PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
     tipo_supuesto VARCHAR(100) NOT NULL,
     fecha_validacion DATE NOT NULL,
     fecha_publicacion DATE NOT NULL
@@ -267,8 +267,8 @@ CREATE TABLE IF NOT EXISTS articulo69b (
 
 -- Tabla articulo69bis
 CREATE TABLE IF NOT EXISTS articulo69bis (
-    rfc VARCHAR(100) PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
+    rfc VARCHAR(255) PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
     tipo_supuesto VARCHAR(100) NOT NULL,
     fecha_validacion DATE NOT NULL,
     fecha_publicacion DATE NOT NULL
@@ -315,3 +315,68 @@ CREATE TABLE IF NOT EXISTS constancias_historial (
         for statement in sql_tables.split(';'):
             if statement.strip():
                 cursor.execute(statement)
+
+
+
+import requests
+import csv
+import re
+from datetime import datetime
+from io import StringIO
+from bs4 import BeautifulSoup
+
+import requests
+import csv
+import re
+from datetime import datetime
+from io import StringIO
+from bs4 import BeautifulSoup
+
+def obtener_fecha_publicacion_sat(indice):
+    """
+    Obtiene la fecha de publicación desde la página del SAT.
+    indice: 1 para Artículo 69, 2 para 69-B, 3 para 69-Bis.
+    """
+    url = 'https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html'
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        texto = soup.get_text()
+        patron = r'Información actualizada al (\d{1,2}) de (\w+) de (\d{4})'
+        matches = re.findall(patron, texto)
+        if matches:
+            idx = indice - 1 if indice <= len(matches) else 0
+            dia, mes_str, anio = matches[idx]
+            meses = {
+                'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+                'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+            }
+            mes = meses.get(mes_str.lower(), 1)
+            return datetime(int(anio), mes, int(dia)).date()
+    except Exception as e:
+        print(f"Error obteniendo fecha: {e}")
+    return datetime.now().date()
+
+def descargar_csv(url):
+    """Descarga un CSV y devuelve lista de diccionarios."""
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        content = response.content.decode('utf-8', errors='replace')
+        reader = csv.DictReader(StringIO(content))
+        return list(reader)
+    except Exception as e:
+        print(f"Error descargando {url}: {e}")
+        return []
+
+def obtener_rfcs_existentes(db_name):
+    """Devuelve un set con todos los RFCs que existen en las tablas de la empresa."""
+    rfcs = set()
+    with connections[db_name].cursor() as cursor:
+        # Ajusta el nombre de la columna RFC si es diferente (ej. 'RFC')
+        for tabla in ['proveedores', 'proveedores_sin_cfdi', 'clientes', 'clientes_sin_cfdi']:
+            cursor.execute(f"SELECT RFC FROM {tabla} WHERE rfc_identy = %s", [db_name])
+            for row in cursor.fetchall():
+                rfcs.add(row[0])
+    return rfcs

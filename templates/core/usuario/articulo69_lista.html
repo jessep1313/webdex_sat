@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ titulo }}{% endblock %}
+{% block content_title %}Artículo 69 - Contribuyentes{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Listado de contribuyentes</h3>
+        <div class="card-tools">
+            <button type="button" id="btnActualizar" class="btn btn-primary btn-sm">
+                <i class="bi bi-cloud-download"></i> Validar / Actualizar
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="tablaArticulo" class="table table-bordered table-striped" style="width:100%">
+            <thead>
+                <tr>
+                    <th>RFC</th>
+                    <th>Nombre</th>
+                    <th>Tipo supuesto / Situación</th>
+                    <th>Fecha validación</th>
+                    <th>Fecha publicación SAT</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal de progreso -->
+<div class="modal fade" id="modalProgreso" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Actualizando información</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="progresoLogs" style="max-height: 300px; overflow-y: auto; background: #f8f9fc; padding: 10px; font-family: monospace;">
+                    <p>Iniciando...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    let dataTable;
+
+    function cargarTabla() {
+        $.ajax({
+            url: "{% url 'usuario_articulo69_data' %}",
+            method: "GET",
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(data) {
+                if (dataTable) dataTable.clear().destroy();
+                dataTable = $('#tablaArticulo').DataTable({
+                    data: data,
+                    columns: [
+                        { data: 'rfc' },
+                        { data: 'nombre' },
+                        { data: 'tipo_supuesto' },
+                        { data: 'fecha_validacion' },
+                        { data: 'fecha_publicacion' }
+                    ],
+                    language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                    pageLength: 20,
+                    order: [[0, 'asc']]
+                });
+            },
+            error: function() { alert('Error al cargar datos'); }
+        });
+    }
+
+    $(document).ready(function() {
+        cargarTabla();
+
+        $('#btnActualizar').click(function() {
+            const modal = $('#modalProgreso');
+            const logsContainer = $('#progresoLogs');
+            logsContainer.html('<p>🚀 Iniciando proceso...</p>');
+            modal.modal('show');
+
+            $.ajax({
+                url: "{% url 'usuario_articulo69_actualizar' %}",
+                method: "POST",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                success: function(resp) {
+                    const taskId = resp.task_id;
+                    let interval = setInterval(function() {
+                        $.ajax({
+                            url: "{% url 'usuario_articulo69_status' 'xxx' %}".replace('xxx', taskId),
+                            method: "GET",
+                            success: function(statusResp) {
+                                let html = '';
+                                statusResp.logs.forEach(function(msg) {
+                                    html += '<p>' + msg + '</p>';
+                                });
+                                logsContainer.html(html);
+                                logsContainer.scrollTop(logsContainer[0].scrollHeight);
+                                if (statusResp.finished) {
+                                    clearInterval(interval);
+                                    if (statusResp.success) {
+                                        logsContainer.append('<p class="text-success">✅ Proceso completado exitosamente.</p>');
+                                        setTimeout(function() {
+                                            modal.modal('hide');
+                                            cargarTabla();
+                                        }, 2000);
+                                    } else {
+                                        logsContainer.append('<p class="text-danger">❌ Error: ' + (statusResp.error || 'Desconocido') + '</p>');
+                                        setTimeout(function() { modal.modal('hide'); }, 5000);
+                                    }
+                                }
+                            },
+                            error: function() { clearInterval(interval); }
+                        });
+                    }, 1500);
+                },
+                error: function() {
+                    logsContainer.html('<p class="text-danger">❌ Error al iniciar la tarea.</p>');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

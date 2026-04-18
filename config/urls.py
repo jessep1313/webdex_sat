@@ -146,14 +146,38 @@ urlpatterns = [
     path('usuario/constancias/descargar/<str:rfc>/', core_views.usuario_constancias_descargar_pdf, name='usuario_constancias_descargar_pdf'),
     path('usuario/constancias/descargar-historial/<int:id_historial>/', core_views.usuario_constancias_descargar_historial, name='usuario_constancias_descargar_historial'),
 
-
-
+    # Validación de domicilio
     path('usuario/validacion-domicilio/', core_views.usuario_validacion_domicilio, name='usuario_validacion_domicilio'),
+    path('usuario/validacion-domicilio/data/', core_views.usuario_validacion_domicilio_data, name='usuario_validacion_domicilio_data'),
+
     path('usuario/articulo69/', core_views.usuario_articulo69, name='usuario_articulo69'),
     path('usuario/articulo69b/', core_views.usuario_articulo69b, name='usuario_articulo69b'),
     path('usuario/articulo69bis/', core_views.usuario_articulo69bis, name='usuario_articulo69bis'),
+
+
     path('usuario/recibidas/', core_views.usuario_recibidas, name='usuario_recibidas'),
     path('usuario/revisar-peticiones/', core_views.usuario_revisar_peticiones, name='usuario_revisar_peticiones'),
+
+
+    # Artículo 69
+    path('usuario/articulo69/', core_views.usuario_articulo69, name='usuario_articulo69'),
+    path('usuario/articulo69/data/', core_views.usuario_articulo69_data, name='usuario_articulo69_data'),
+    path('usuario/articulo69/actualizar/', core_views.usuario_articulo69_actualizar, name='usuario_articulo69_actualizar'),
+    path('usuario/articulo69/status/<str:task_id>/', core_views.usuario_articulo69_status, name='usuario_articulo69_status'),
+
+    # Artículo 69-B
+    path('usuario/articulo69b/', core_views.usuario_articulo69b, name='usuario_articulo69b'),
+    path('usuario/articulo69b/data/', core_views.usuario_articulo69b_data, name='usuario_articulo69b_data'),
+    path('usuario/articulo69b/actualizar/', core_views.usuario_articulo69b_actualizar, name='usuario_articulo69b_actualizar'),
+    path('usuario/articulo69b/status/<str:task_id>/', core_views.usuario_articulo69b_status, name='usuario_articulo69b_status'),
+
+    # Artículo 69-Bis
+    path('usuario/articulo69bis/', core_views.usuario_articulo69bis, name='usuario_articulo69bis'),
+    path('usuario/articulo69bis/data/', core_views.usuario_articulo69bis_data, name='usuario_articulo69bis_data'),
+    path('usuario/articulo69bis/actualizar/', core_views.usuario_articulo69bis_actualizar, name='usuario_articulo69bis_actualizar'),
+    path('usuario/articulo69bis/status/<str:task_id>/', core_views.usuario_articulo69bis_status, name='usuario_articulo69bis_status'),
+
+
 
     
     
