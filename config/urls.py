@@ -135,7 +135,8 @@ urlpatterns = [
     path('usuario/opiniones/historial/<str:rfc>/', core_views.usuario_opiniones_historial, name='usuario_opiniones_historial'),
     path('usuario/opiniones/descargar/<str:rfc>/', core_views.usuario_opiniones_descargar_pdf, name='usuario_opiniones_descargar_pdf'),
     path('usuario/opiniones/descargar-historial/<int:id_historial>/', core_views.usuario_opiniones_descargar_historial, name='usuario_opiniones_descargar_historial'),
-
+    path('usuario/opiniones/obtener-sat/', core_views.usuario_opiniones_obtener_sat, name='usuario_opiniones_obtener_sat'),
+    path('usuario/opiniones/obtener-sat/status/<str:task_id>/', core_views.usuario_opiniones_obtener_sat_status, name='usuario_opiniones_obtener_sat_status'),
 
     path('usuario/constancias/', core_views.usuario_constancias, name='usuario_constancias'),
     path('usuario/validacion-domicilio/', core_views.usuario_validacion_domicilio, name='usuario_validacion_domicilio'),

@@ -3638,6 +3638,523 @@ def usuario_opiniones_descargar_pdf(request, rfc):
 
 
 
+import os
+import time
+import re
+import shutil
+from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.db import connections
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .decorators import usuario_required
+import uuid
+import threading
+
+
+def obtener_opinion_sat___(rfc, download_dir, logs):
+    """
+    Realiza la consulta al SAT y devuelve:
+    - 'pdf': ruta del archivo descargado, fecha, resultado
+    - 'status': estado (Positivo, Negativo, SinRespuesta) cuando no hay PDF
+    - None si falla
+    """
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_experimental_option('prefs', {
+        "download.default_directory": download_dir,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "plugins.always_open_pdf_externally": True
+    })
+
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    logs.append("✅ Navegador iniciado")
+
+    try:
+        url = 'https://ptsc32d.clouda.sat.gob.mx/ConsultaPublico'
+        driver.get(url)
+        logs.append("🌐 Entrando al SAT...")
+
+        # Configurar descarga
+        params = {'behavior': 'allow', 'downloadPath': download_dir}
+        driver.execute_cdp_cmd('Page.setDownloadBehavior', params)
+
+        # Esperar campo RFC
+        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "txtRfc")))
+        logs.append("📄 Formulario cargado")
+
+        # Ingresar RFC letra por letra
+        rfc_input = driver.find_element(By.ID, "txtRfc")
+        rfc_input.clear()
+        for c in rfc:
+            rfc_input.send_keys(c)
+            time.sleep(0.1)
+        logs.append(f"🔑 Ingresando RFC {rfc}")
+
+        # Hacer clic en buscar
+        driver.find_element(By.ID, "buqueda").click()
+        logs.append("🔍 Buscando...")
+        time.sleep(5)
+
+        # Verificar si hay mensaje de error en el body (sin PDF)
+        body = driver.find_element(By.TAG_NAME, "body")
+        texto_pagina = body.text
+
+        # Patrones de mensajes
+        patron_negativo = r"El RFC o CURP, no cumple con los requisitos para hacer pública su opinión positiva"
+        patron_sin_respuesta = r"El RFC o CURP consultado no se encuentra autorizado para hacerse público."
+        patron_positivo = r"Opinión Positiva.* Información a la fecha de la consulta."
+
+        print(texto_pagina)
+
+        if re.search(patron_negativo, texto_pagina):
+            logs.append("⚠️ RFC no cumple requisitos → Estatus Negativo")
+            driver.quit()
+            return {'status': 'Negativo', 'fecha': datetime.now().date()}
+        elif re.search(patron_sin_respuesta, texto_pagina):
+            logs.append("⚠️ RFC no autorizado → Estatus SinRespuesta")
+            driver.quit()
+            return {'status': 'SinRespuesta', 'fecha': datetime.now().date()}
+        elif re.search(patron_positivo, texto_pagina):
+            # En teoría, si es positivo debería mostrar el PDF, pero podría haber un mensaje
+            logs.append("✅ Opinión positiva detectada, se intentará descargar PDF")
+            # Continuar con la descarga del PDF
+        else:
+            logs.append("📄 No se detectó mensaje de error, intentando descargar PDF...")
+
+        # Si llegamos aquí, intentamos descargar el PDF (caso positivo o sin mensaje claro)
+        try:
+            iframe = WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.XPATH, "/html/body/div/main/div[2]/div/label/div[2]/div[1]/iframe"))
+            )
+            driver.switch_to.frame(iframe)
+            logs.append("🖱️ Cambiando al iframe...")
+        except Exception as e:
+            logs.append(f"❌ No se pudo acceder al iframe: {str(e)}")
+            driver.quit()
+            return None
+
+        try:
+            boton = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "/html/body/div/div/a/button"))
+            )
+            boton.click()
+            logs.append("⬇️ Descargando PDF...")
+        except Exception as e:
+            logs.append(f"❌ Error al hacer clic en el botón de descarga: {str(e)}")
+            driver.quit()
+            return None
+
+        # Esperar a que se descargue el archivo
+        time.sleep(10)
+        archivos = [f for f in os.listdir(download_dir) if f.endswith('.pdf')]
+        if not archivos:
+            logs.append("❌ No se detectó ningún PDF descargado")
+            driver.quit()
+            return None
+
+        archivos.sort(key=lambda x: os.path.getmtime(os.path.join(download_dir, x)), reverse=True)
+        pdf_path = os.path.join(download_dir, archivos[0])
+        logs.append(f"✅ PDF descargado: {os.path.basename(pdf_path)}")
+
+        # Extraer datos del PDF
+        from PyPDF2 import PdfReader
+        with open(pdf_path, 'rb') as f:
+            reader = PdfReader(f)
+            texto = ""
+            for page in reader.pages:
+                texto += page.extract_text()
+
+        # Extraer fecha
+        patron_fecha = r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s+a\s+las\s+(\d{1,2}:\d{2})\s+horas'
+        match_fecha = re.search(patron_fecha, texto)
+        if not match_fecha:
+            raise ValueError("No se encontró la fecha en el PDF")
+        dia = int(match_fecha.group(1))
+        mes_str = match_fecha.group(2).lower()
+        anio = int(match_fecha.group(3))
+        meses = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+            'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        }
+        mes = meses.get(mes_str, 1)
+        fecha_opinion = datetime(anio, mes, dia).date()
+
+        # Extraer resultado (P o N)
+        patron_resultado = r'\|[^|]*\|[^|]*\|[^|]*\|([PN])\|\|'
+        match_res = re.search(patron_resultado, texto)
+        resultado = 'Positivo' if match_res and match_res.group(1) == 'P' else 'Negativo' if match_res and match_res.group(1) == 'N' else 'SinRespuesta'
+        logs.append(f"📊 Datos extraídos: fecha={fecha_opinion}, resultado={resultado}")
+
+        driver.quit()
+        return {'pdf_path': pdf_path, 'fecha': fecha_opinion, 'resultado': resultado}
+    except Exception as e:
+        logs.append(f"❌ Error general: {str(e)}")
+        driver.quit()
+        return None
+
+@usuario_required
+@csrf_exempt
+def usuario_opiniones_obtener_sat_____(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    rfc = request.POST.get('rfc')
+    tipo = request.POST.get('tipo')
+    if not rfc or not tipo:
+        return JsonResponse({'error': 'Faltan datos (RFC o tipo)'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    logs = []
+    temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_opinions', rfc)
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # Iniciar proceso
+    logs.append("🚀 Iniciando el proceso de obtención de opinión del SAT...")
+    resultado = obtener_opinion_sat(rfc, temp_dir, logs)
+
+    if resultado is None:
+        return JsonResponse({'error': 'No se pudo completar la operación', 'logs': logs}, status=500)
+
+    # Mapeo de tipo a tabla
+    tabla_map = {
+        'proveedor': 'proveedores',
+        'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+        'cliente': 'clientes',
+        'cliente_sin_cfdi': 'clientes_sin_cfdi'
+    }
+    tabla = tabla_map.get(tipo)
+    if not tabla:
+        return JsonResponse({'error': 'Tipo de entidad inválido', 'logs': logs}, status=400)
+
+    try:
+        with connections[db_name].cursor() as cursor:
+            # Si hay PDF (caso con descarga)
+            if 'pdf_path' in resultado:
+                # Mover PDF a la ruta definitiva
+                año = resultado['fecha'].year
+                mes = resultado['fecha'].month
+                ruta_destino = os.path.join('opinion', rfc, str(año), f"{mes:02d}")
+                nombre_archivo = f"{rfc}_{resultado['fecha'].strftime('%Y%m%d')}.pdf"
+                destino = default_storage.save(os.path.join(ruta_destino, nombre_archivo),
+                                               ContentFile(open(resultado['pdf_path'], 'rb').read()))
+                logs.append(f"📁 PDF guardado en: {destino}")
+
+                # Insertar en historial
+                cursor.execute("""
+                    INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, tipo, destino, resultado['resultado'], resultado['fecha']])
+
+                # Actualizar tabla principal
+                sql = f"""
+                    UPDATE {tabla}
+                    SET Estatus = %s, fecha_opinion = %s, opinion = 1
+                    WHERE RFC = %s AND rfc_identy = %s
+                """
+                cursor.execute(sql, [resultado['resultado'], resultado['fecha'], rfc, rfc_empresa])
+                logs.append(f"✅ Registro actualizado con PDF (resultado: {resultado['resultado']})")
+
+                # Eliminar archivo temporal
+                os.remove(resultado['pdf_path'])
+
+            else:
+                # Caso sin PDF (solo actualización de estatus)
+                fecha_actual = resultado['fecha']
+                sql = f"""
+                    UPDATE {tabla}
+                    SET Estatus = %s, fecha_opinion = %s, opinion = 0
+                    WHERE RFC = %s AND rfc_identy = %s
+                """
+                cursor.execute(sql, [resultado['status'], fecha_actual, rfc, rfc_empresa])
+                logs.append(f"✅ Registro actualizado sin PDF (estatus: {resultado['status']})")
+
+                # También podemos registrar en historial que se consultó sin PDF (opcional)
+                cursor.execute("""
+                    INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, tipo, '', resultado['status'], fecha_actual])
+
+            if cursor.rowcount == 0:
+                logs.append("⚠️ Advertencia: No se encontró el registro en la tabla principal")
+    except Exception as e:
+        logs.append(f"❌ Error en base de datos: {str(e)}")
+        return JsonResponse({'error': f'Error en base de datos: {str(e)}', 'logs': logs}, status=500)
+
+    logs.append("🎉 Proceso terminado correctamente")
+    return JsonResponse({'success': True, 'logs': logs})
+
+
+
+# Diccionario en memoria para almacenar el estado de las tareas
+tasks_status = {}
+
+def obtener_opinion_sat(rfc, download_dir, logs):
+    """
+    Realiza la consulta al SAT y devuelve:
+    - 'pdf': ruta del archivo descargado, fecha, resultado
+    - 'status': estado (Positivo, Negativo, SinRespuesta) cuando no hay PDF
+    - None si falla
+    """
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_experimental_option('prefs', {
+        "download.default_directory": download_dir,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "plugins.always_open_pdf_externally": True
+    })
+
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    logs.append("✅ Navegador iniciado")
+
+    try:
+        url = 'https://ptsc32d.clouda.sat.gob.mx/ConsultaPublico'
+        driver.get(url)
+        logs.append("🌐 Entrando al SAT...")
+
+        params = {'behavior': 'allow', 'downloadPath': download_dir}
+        driver.execute_cdp_cmd('Page.setDownloadBehavior', params)
+
+        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "txtRfc")))
+        logs.append("📄 Formulario cargado")
+
+        rfc_input = driver.find_element(By.ID, "txtRfc")
+        rfc_input.clear()
+        for c in rfc:
+            rfc_input.send_keys(c)
+            time.sleep(0.1)
+        logs.append(f"🔑 Ingresando RFC {rfc}")
+
+        driver.find_element(By.ID, "buqueda").click()
+        logs.append("🔍 Buscando...")
+        time.sleep(5)
+
+        body = driver.find_element(By.TAG_NAME, "body")
+        texto_pagina = body.text
+
+        patron_negativo = r"El RFC o CURP, no cumple con los requisitos para hacer pública su opinión positiva"
+        patron_sin_respuesta = r"El RFC o CURP consultado no se encuentra autorizado para hacerse público"
+        patron_positivo = r"Opinión Positiva.* Información a la fecha de la consulta."
+
+        print(texto_pagina)
+        
+        if re.search(patron_negativo, texto_pagina):
+            logs.append("⚠️ RFC no cumple requisitos → Estatus Negativo")
+            driver.quit()
+            return {'status': 'Negativo', 'fecha': datetime.now().date()}
+        elif re.search(patron_sin_respuesta, texto_pagina):
+            logs.append("⚠️ RFC no autorizado → Estatus SinRespuesta")
+            driver.quit()
+            return {'status': 'SinRespuesta', 'fecha': datetime.now().date()}
+        elif re.search(patron_positivo, texto_pagina):
+            logs.append("✅ Opinión positiva detectada, se intentará descargar PDF")
+        else:
+            logs.append("📄 No se detectó mensaje de error, intentando descargar PDF...")
+
+        try:
+            iframe = WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.XPATH, "/html/body/div/main/div[2]/div/label/div[2]/div[1]/iframe"))
+            )
+            driver.switch_to.frame(iframe)
+            logs.append("🖱️ Cambiando al iframe...")
+        except Exception as e:
+            logs.append(f"❌ No se pudo acceder al iframe: {str(e)}")
+            driver.quit()
+            return None
+
+        try:
+            boton = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "/html/body/div/div/a/button"))
+            )
+            boton.click()
+            logs.append("⬇️ Descargando PDF...")
+        except Exception as e:
+            logs.append(f"❌ Error al hacer clic en el botón de descarga: {str(e)}")
+            driver.quit()
+            return None
+
+        time.sleep(10)
+        archivos = [f for f in os.listdir(download_dir) if f.endswith('.pdf')]
+        if not archivos:
+            logs.append("❌ No se detectó ningún PDF descargado")
+            driver.quit()
+            return None
+
+        archivos.sort(key=lambda x: os.path.getmtime(os.path.join(download_dir, x)), reverse=True)
+        pdf_path = os.path.join(download_dir, archivos[0])
+        logs.append(f"✅ PDF descargado: {os.path.basename(pdf_path)}")
+
+        from PyPDF2 import PdfReader
+        with open(pdf_path, 'rb') as f:
+            reader = PdfReader(f)
+            texto = ""
+            for page in reader.pages:
+                texto += page.extract_text()
+
+        patron_fecha = r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s+a\s+las\s+(\d{1,2}:\d{2})\s+horas'
+        match_fecha = re.search(patron_fecha, texto)
+        if not match_fecha:
+            raise ValueError("No se encontró la fecha en el PDF")
+        dia = int(match_fecha.group(1))
+        mes_str = match_fecha.group(2).lower()
+        anio = int(match_fecha.group(3))
+        meses = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+            'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        }
+        mes = meses.get(mes_str, 1)
+        fecha_opinion = datetime(anio, mes, dia).date()
+
+        patron_resultado = r'\|[^|]*\|[^|]*\|[^|]*\|([PN])\|\|'
+        match_res = re.search(patron_resultado, texto)
+        resultado = 'Positivo' if match_res and match_res.group(1) == 'P' else 'Negativo' if match_res and match_res.group(1) == 'N' else 'SinRespuesta'
+        logs.append(f"📊 Datos extraídos: fecha={fecha_opinion}, resultado={resultado}")
+
+        driver.quit()
+        return {'pdf_path': pdf_path, 'fecha': fecha_opinion, 'resultado': resultado}
+    except Exception as e:
+        logs.append(f"❌ Error general: {str(e)}")
+        driver.quit()
+        return None
+
+def run_opinion_task(task_id, rfc, tipo, db_name, rfc_empresa):
+    """Ejecuta el proceso en segundo plano y actualiza el diccionario de estado."""
+    logs = []
+    tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
+    try:
+        logs.append("🚀 Iniciando el proceso de obtención de opinión del SAT...")
+        tasks_status[task_id]['logs'] = logs
+
+        temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_opinions', rfc)
+        os.makedirs(temp_dir, exist_ok=True)
+        logs.append("📁 Directorio temporal creado")
+
+        resultado = obtener_opinion_sat(rfc, temp_dir, logs)
+        tasks_status[task_id]['logs'] = logs
+
+        if resultado is None:
+            tasks_status[task_id]['error'] = 'No se pudo completar la operación'
+            tasks_status[task_id]['finished'] = True
+            return
+
+        tabla_map = {
+            'proveedor': 'proveedores',
+            'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+            'cliente': 'clientes',
+            'cliente_sin_cfdi': 'clientes_sin_cfdi'
+        }
+        tabla = tabla_map.get(tipo)
+        if not tabla:
+            tasks_status[task_id]['error'] = 'Tipo de entidad inválido'
+            tasks_status[task_id]['finished'] = True
+            return
+
+        with connections[db_name].cursor() as cursor:
+            if 'pdf_path' in resultado:
+                año = resultado['fecha'].year
+                mes = resultado['fecha'].month
+                ruta_destino = os.path.join('opinion', rfc, str(año), f"{mes:02d}")
+                nombre_archivo = f"{rfc}_{resultado['fecha'].strftime('%Y%m%d')}.pdf"
+                destino = default_storage.save(
+                    os.path.join(ruta_destino, nombre_archivo),
+                    ContentFile(open(resultado['pdf_path'], 'rb').read())
+                )
+                logs.append(f"📁 PDF guardado en: {destino}")
+
+                cursor.execute("""
+                    INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, tipo, destino, resultado['resultado'], resultado['fecha']])
+
+                sql = f"""
+                    UPDATE {tabla}
+                    SET Estatus = %s, fecha_opinion = %s, opinion = 1
+                    WHERE RFC = %s AND rfc_identy = %s
+                """
+                cursor.execute(sql, [resultado['resultado'], resultado['fecha'], rfc, rfc_empresa])
+                logs.append(f"✅ Registro actualizado con PDF (resultado: {resultado['resultado']})")
+                os.remove(resultado['pdf_path'])
+            else:
+                fecha_actual = resultado['fecha']
+                sql = f"""
+                    UPDATE {tabla}
+                    SET Estatus = %s, fecha_opinion = %s, opinion = 0
+                    WHERE RFC = %s AND rfc_identy = %s
+                """
+                cursor.execute(sql, [resultado['status'], fecha_actual, rfc, rfc_empresa])
+                logs.append(f"✅ Registro actualizado sin PDF (estatus: {resultado['status']})")
+                cursor.execute("""
+                    INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, tipo, '', resultado['status'], fecha_actual])
+
+        tasks_status[task_id]['success'] = True
+        logs.append("🎉 Proceso terminado correctamente")
+    except Exception as e:
+        logs.append(f"❌ Error: {str(e)}")
+        tasks_status[task_id]['error'] = str(e)
+    finally:
+        tasks_status[task_id]['finished'] = True
+        tasks_status[task_id]['logs'] = logs
+
+@usuario_required
+@csrf_exempt
+def usuario_opiniones_obtener_sat(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    rfc = request.POST.get('rfc')
+    tipo = request.POST.get('tipo')
+    if not rfc or not tipo:
+        return JsonResponse({'error': 'Faltan datos (RFC o tipo)'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    task_id = str(uuid.uuid4())
+    tasks_status[task_id] = {'logs': [], 'finished': False, 'success': False, 'error': None}
+
+    thread = threading.Thread(target=run_opinion_task, args=(task_id, rfc, tipo, db_name, rfc_empresa))
+    thread.daemon = True
+    thread.start()
+
+    return JsonResponse({'task_id': task_id})
+
+@usuario_required
+def usuario_opiniones_obtener_sat_status(request, task_id):
+    """Devuelve el estado y los logs de una tarea."""
+    status = tasks_status.get(task_id)
+    if not status:
+        return JsonResponse({'error': 'Tarea no encontrada'}, status=404)
+    return JsonResponse({
+        'finished': status['finished'],
+        'logs': status['logs'],
+        'success': status.get('success', False),
+        'error': status.get('error')
+    })
+
 
 
 @usuario_required

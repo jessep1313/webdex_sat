@@ -74,6 +74,26 @@
         </div>
     </div>
 </div>
+
+<!-- Modal para descarga automática desde SAT -->
+<div class="modal fade" id="modalObtenerSAT" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Obteniendo opinión del SAT</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="satLogs" style="max-height: 400px; overflow-y: auto; background: #f8f9fc; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 0.9rem;">
+                    <p>Iniciando proceso...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -118,7 +138,7 @@
                                     <button class="btn btn-sm btn-secondary btn-historial" data-rfc="${row.rfc}" title="Ver historial">
                                         <i class="bi bi-clock-history"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-primary btn-sat" title="Obtener OP del SAT (próximamente)">
+                                   <button class="btn btn-sm btn-outline-primary btn-sat" data-rfc="${row.rfc}" data-tipo="${row.tipo}" title="Obtener OP del SAT">
                                         <i class="bi bi-cloud-download"></i>
                                     </button>
                                 `;
@@ -213,5 +233,66 @@
             });
         });
     });
+
+
+$('#tablaOpiniones').on('click', '.btn-sat', function() {
+    const rfc = $(this).data('rfc');
+    const tipo = $(this).data('tipo');
+    const modal = $('#modalObtenerSAT');
+    const logsContainer = $('#satLogs');
+    logsContainer.html('<p>🚀 Iniciando el proceso...</p>');
+    modal.modal('show');
+
+    $.ajax({
+        url: "{% url 'usuario_opiniones_obtener_sat' %}",
+        method: "POST",
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        data: { rfc: rfc, tipo: tipo },
+        success: function(resp) {
+            const taskId = resp.task_id;
+            let interval = setInterval(function() {
+                $.ajax({
+                    url: "{% url 'usuario_opiniones_obtener_sat_status' 'xxx' %}".replace('xxx', taskId),
+                    method: "GET",
+                    success: function(statusResp) {
+                        let logsHtml = '';
+                        if (statusResp.logs && statusResp.logs.length) {
+                            statusResp.logs.forEach(function(msg) {
+                                logsHtml += '<p>' + msg + '</p>';
+                            });
+                        } else {
+                            logsHtml = '<p>Esperando inicio...</p>';
+                        }
+                        logsContainer.html(logsHtml);
+                        logsContainer.scrollTop(logsContainer[0].scrollHeight);
+
+                        if (statusResp.finished) {
+                            clearInterval(interval);
+                            if (statusResp.success) {
+                                logsContainer.append('<p class="text-success">✅ Proceso completado exitosamente.</p>');
+                                setTimeout(function() {
+                                    modal.modal('hide');
+                                    cargarTabla();  // Recargar la tabla
+                                }, 2000);
+                            } else {
+                                logsContainer.append('<p class="text-danger">❌ Error: ' + (statusResp.error || 'Desconocido') + '</p>');
+                                setTimeout(function() { modal.modal('hide'); }, 5000);
+                            }
+                        }
+                    },
+                    error: function() {
+                        clearInterval(interval);
+                        logsContainer.html('<p class="text-danger">❌ Error al consultar el estado de la tarea.</p>');
+                    }
+                });
+            }, 1500); // Consulta cada 1.5 segundos
+        },
+        error: function(xhr) {
+            let msg = 'Error de conexión';
+            if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
+            logsContainer.html('<p class="text-danger">❌ ' + msg + '</p>');
+        }
+    });
+});
 </script>
 {% endblock %}
