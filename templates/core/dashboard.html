@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
+{% load static %}
+
 {% block title %}Dashboard{% endblock %}
 {% block content_title %}Panel de Control{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-md-12">
@@ -8,10 +11,223 @@
             <div class="card-body">
                 <h5>Bienvenido, {{ request.session.user_nombre }}</h5>
                 <p>Rol: 
-                    {% if request.session.user_type == 'SA' %}Superadministrador{% elif request.session.user_type == 'A' %}Administrador{% else %}Usuario{% endif %}
+                    {% if request.session.user_type == 'SA' %}
+                        Superadministrador
+                    {% elif request.session.user_type == 'A' %}
+                        Administrador
+                    {% else %}
+                        Usuario
+                    {% endif %}
                 </p>
             </div>
         </div>
     </div>
 </div>
+
+<!-- SA Dashboard -->
+{% if request.session.user_type == 'SA' %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Estadísticas Globales</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-info">
+                            <div class="inner">
+                                <h3>{{ stats.grupos }}</h3>
+                                <p>Grupos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-success">
+                            <div class="inner">
+                                <h3>{{ stats.empresas }}</h3>
+                                <p>Empresas</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-warning">
+                            <div class="inner">
+                                <h3>{{ stats.sucursales }}</h3>
+                                <p>Sucursales (total)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-danger">
+                            <div class="inner">
+                                <h3>{{ stats.admins }}</h3>
+                                <p>Administradores</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-secondary">
+                            <div class="inner">
+                                <h3>{{ stats.usuarios }}</h3>
+                                <p>Usuarios normales</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-primary">
+                            <div class="inner">
+                                <h3>{{ stats.fiel_validas }}</h3>
+                                <p>Empresas con FIEL</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-dark">
+                            <div class="inner">
+                                <h3>{{ stats.sin_fiel }}</h3>
+                                <p>Empresas sin FIEL</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Detalle por Empresa</h3>
+    </div>
+    <div class="card-body">
+        <table id="tablaEmpresas" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>RFC</th>
+                    <th>Sucursales</th>
+                    <th>Activa</th>
+                    <th>Base de datos</th>
+                    <th>FIEL</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in empresas_con_sucursales %}
+                <tr>
+                    <td>{{ emp.nombre }}</td>
+                    <td>{{ emp.rfc }}</td>
+                    <td>{{ emp.sucursales }}</td>
+                    <td>{% if emp.activo %}Sí{% else %}No{% endif %}</td>
+                    <td>{{ emp.db_name }}</td>
+                    <td>{% if emp.fiel %}<span class="badge bg-success">Cargada</span>{% else %}<span class="badge bg-danger">No cargada</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+    <!-- 其他角色的 dashboard (A y US) -->
+    {% if stats %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Estadísticas de la empresa</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-3 col-6">
+                            <div class="small-box bg-info">
+                                <div class="inner">
+                                    <h3>{{ stats.proveedores }}</h3>
+                                    <p>Proveedores</p>
+                                </div>
+                                <div class="icon"><i class="bi bi-people"></i></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-6">
+                            <div class="small-box bg-warning">
+                                <div class="inner">
+                                    <h3>{{ stats.proveedores_sin_cfdi }}</h3>
+                                    <p>Proveedores sin CFDI</p>
+                                </div>
+                                <div class="icon"><i class="bi bi-file-earmark-text"></i></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-6">
+                            <div class="small-box bg-success">
+                                <div class="inner">
+                                    <h3>{{ stats.clientes }}</h3>
+                                    <p>Clientes</p>
+                                </div>
+                                <div class="icon"><i class="bi bi-person-badge"></i></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-6">
+                            <div class="small-box bg-secondary">
+                                <div class="inner">
+                                    <h3>{{ stats.clientes_sin_cfdi }}</h3>
+                                    <p>Clientes sin CFDI</p>
+                                </div>
+                                <div class="icon"><i class="bi bi-person-x"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    Opiniones del mes actual
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-4 text-center">
+                                            <span class="badge bg-success" style="font-size: 1.2rem;">{{ stats.opiniones.Positivo }}</span>
+                                            <p>Positivas</p>
+                                        </div>
+                                        <div class="col-4 text-center">
+                                            <span class="badge bg-danger" style="font-size: 1.2rem;">{{ stats.opiniones.Negativo }}</span>
+                                            <p>Negativas</p>
+                                        </div>
+                                        <div class="col-4 text-center">
+                                            <span class="badge bg-secondary" style="font-size: 1.2rem;">{{ stats.opiniones.SinRespuesta }}</span>
+                                            <p>Sin respuesta</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    CFDI
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-6 text-center">
+                                            <span class="badge bg-success" style="font-size: 1.2rem;">{{ stats.cfdi_recibidos }}</span>
+                                            <p>Recibidos</p>
+                                        </div>
+                                        <div class="col-6 text-center">
+                                            <span class="badge bg-warning" style="font-size: 1.2rem;">{{ stats.cfdi_emitidos }}</span>
+                                            <p>Emitidos</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">No hay datos de empresa disponibles.</div>
+    {% endif %}
+{% endif %}
 {% endblock %}

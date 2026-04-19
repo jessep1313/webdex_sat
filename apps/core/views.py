@@ -161,11 +161,172 @@ def login_view(request):
     return render(request, 'core/login.html')
 
 
-def dashboard(request):
+def dashboard_(request):
     user_type = request.session.get('user_type')
     if not user_type:
         return redirect('login')
     return render(request, 'core/dashboard.html')
+
+
+
+
+def dashboard___2(request):
+    user_type = request.session.get('user_type')
+    if not user_type:
+        return redirect('login')
+
+    # Obtener datos de la empresa solo para roles tenant
+    db_name = None
+    rfc_empresa = None
+    if user_type in ('A', 'US'):
+        db_name = request.session.get('empresa_db_name')
+        rfc_empresa = request.session.get('empresa_rfc')
+        if not db_name or not rfc_empresa:
+            # Si no hay datos de empresa, mostrar solo bienvenida
+            return render(request, 'core/dashboard.html', {'stats': None})
+
+    stats = {}
+    if db_name and rfc_empresa:
+        with connections[db_name].cursor() as cursor:
+            # 1. Conteo de entidades (usando rfc_empresa)
+            cursor.execute("SELECT COUNT(*) FROM proveedores WHERE rfc_identy = %s", [rfc_empresa])
+            stats['proveedores'] = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM proveedores_sin_cfdi WHERE rfc_identy = %s", [rfc_empresa])
+            stats['proveedores_sin_cfdi'] = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM clientes WHERE rfc_identy = %s", [rfc_empresa])
+            stats['clientes'] = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM clientes_sin_cfdi WHERE rfc_identy = %s", [rfc_empresa])
+            stats['clientes_sin_cfdi'] = cursor.fetchone()[0]
+
+            # 2. Opiniones del mes actual
+            hoy = date.today()
+            primer_dia_mes = hoy.replace(day=1)
+            sql_opiniones = """
+                SELECT Estatus, COUNT(*) FROM (
+                    SELECT Estatus FROM proveedores WHERE rfc_identy = %s AND fecha_opinion >= %s AND fecha_opinion <= %s
+                    UNION ALL
+                    SELECT Estatus FROM proveedores_sin_cfdi WHERE rfc_identy = %s AND fecha_opinion >= %s AND fecha_opinion <= %s
+                    UNION ALL
+                    SELECT Estatus FROM clientes WHERE rfc_identy = %s AND fecha_opinion >= %s AND fecha_opinion <= %s
+                    UNION ALL
+                    SELECT Estatus FROM clientes_sin_cfdi WHERE rfc_identy = %s AND fecha_opinion >= %s AND fecha_opinion <= %s
+                ) AS t GROUP BY Estatus
+            """
+            params = [rfc_empresa, primer_dia_mes, hoy] * 4
+            cursor.execute(sql_opiniones, params)
+            rows = cursor.fetchall()
+            opiniones = {'Positivo': 0, 'Negativo': 0, 'SinRespuesta': 0}
+            for estatus, count in rows:
+                if estatus in opiniones:
+                    opiniones[estatus] = count
+            stats['opiniones'] = opiniones
+
+            # 3. CFDI recibidos y emitidos (usando rfc_empresa)
+            cursor.execute("SELECT COUNT(*) FROM cfdi_recibido WHERE rfc_receptor = %s", [rfc_empresa])
+            stats['cfdi_recibidos'] = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM cfdi_emitidos WHERE rfc_emisor = %s", [rfc_empresa])
+            stats['cfdi_emitidos'] = cursor.fetchone()[0]
+
+    context = {
+        'user_type': user_type,
+        'stats': stats,
+    }
+    return render(request, 'core/dashboard.html', context)
+
+
+
+
+def dashboard(request):
+    user_type = request.session.get('user_type')
+    if not user_type:
+        return redirect('login')
+
+
+    if user_type == 'SA':
+        from empresas.models import Grupo, Empresa, Sucursal, Admin, UsuarioCentral, EFirma
+        grupos = Grupo.objects.using('default').count()
+        empresas = Empresa.objects.using('default').count()
+        sucursales = Sucursal.objects.using('default').count()
+        admins = Admin.objects.using('default').count()
+        usuarios = UsuarioCentral.objects.using('default').count()
+        efirmas_validas = EFirma.objects.using('default').filter(estatus='validado').values('empresa').distinct().count()
+        sin_fiel = empresas - efirmas_validas
+
+        empresas_con_sucursales = []
+        for empresa in Empresa.objects.using('default').all():
+            suc_count = Sucursal.objects.using('default').filter(empresa=empresa).count()
+            empresas_con_sucursales.append({
+                'nombre': empresa.nombre,
+                'sucursales': suc_count,
+                'rfc': empresa.rfc,
+                'activo': empresa.activo,
+                'db_name': empresa.db_name,
+                'fiel': EFirma.objects.using('default').filter(empresa=empresa.nombre, estatus='validado').exists()
+            })
+
+        context = {
+            'user_type': user_type,
+            'stats': {
+                'grupos': grupos,
+                'empresas': empresas,
+                'sucursales': sucursales,
+                'admins': admins,
+                'usuarios': usuarios,
+                'fiel_validas': efirmas_validas,
+                'sin_fiel': sin_fiel,
+            },
+            'empresas_con_sucursales': empresas_con_sucursales,
+        }
+        return render(request, 'core/dashboard.html', context)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return render(request, 'core/dashboard.html', {'user_type': user_type, 'stats': None})
+
+    stats = {}
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM proveedores WHERE rfc_identy = %s", [rfc_empresa])
+        stats['proveedores'] = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM proveedores_sin_cfdi WHERE rfc_identy = %s", [rfc_empresa])
+        stats['proveedores_sin_cfdi'] = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM clientes WHERE rfc_identy = %s", [rfc_empresa])
+        stats['clientes'] = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM clientes_sin_cfdi WHERE rfc_identy = %s", [rfc_empresa])
+        stats['clientes_sin_cfdi'] = cursor.fetchone()[0]
+
+        hoy = date.today()
+        primer_dia_mes = hoy.replace(day=1)
+        sql_opiniones = """
+            SELECT Estatus, COUNT(*) FROM (
+                SELECT Estatus FROM proveedores WHERE rfc_identy = %s AND fecha_opinion >= %s AND fecha_opinion <= %s
+                UNION ALL
+                SELECT Estatus FROM proveedores_sin_cfdi WHERE rfc_identy = %s AND fecha_opinion >= %s AND fecha_opinion <= %s
+                UNION ALL
+                SELECT Estatus FROM clientes WHERE rfc_identy = %s AND fecha_opinion >= %s AND fecha_opinion <= %s
+                UNION ALL
+                SELECT Estatus FROM clientes_sin_cfdi WHERE rfc_identy = %s AND fecha_opinion >= %s AND fecha_opinion <= %s
+            ) AS t GROUP BY Estatus
+        """
+        params = [rfc_empresa, primer_dia_mes, hoy] * 4
+        cursor.execute(sql_opiniones, params)
+        rows = cursor.fetchall()
+        opiniones = {'Positivo': 0, 'Negativo': 0, 'SinRespuesta': 0}
+        for estatus, count in rows:
+            if estatus in opiniones:
+                opiniones[estatus] = count
+        stats['opiniones'] = opiniones
+
+        cursor.execute("SELECT COUNT(*) FROM cfdi_recibido WHERE rfc_receptor = %s", [rfc_empresa])
+        stats['cfdi_recibidos'] = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM cfdi_emitidos WHERE rfc_emisor = %s", [rfc_empresa])
+        stats['cfdi_emitidos'] = cursor.fetchone()[0]
+
+    context = {
+        'user_type': user_type,
+        'stats': stats,
+    }
+    return render(request, 'core/dashboard.html', context)
     
 
 def dashboard_superadmin(request):
