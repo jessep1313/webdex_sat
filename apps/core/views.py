@@ -4697,12 +4697,12 @@ from django.db import connections
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .decorators import usuario_required
-from .utils import obtener_fecha_publicacion_sat, descargar_csv, obtener_rfcs_existentes
+from .utils import obtener_fecha_publicacion_sat, descargar_csv, obtener_rfcs_existentes,descargar_csv_por_indice,extraer_fecha_desde_csv
 
 
 tasks_status = {}  # Diccionario para almacenar estado de tareas
 
-def run_articulo69_task(task_id, db_name):
+def run_articulo69_task___2(task_id, db_name):
     logs = []
     tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
     try:
@@ -4751,6 +4751,75 @@ def run_articulo69_task(task_id, db_name):
         tasks_status[task_id]['logs'] = logs
 
 
+def run_articulo69_task(task_id, db_name):
+    logs = []
+    tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
+    try:
+        logs.append("🚀 Iniciando actualización de Artículo 69...")
+        
+        urls = [
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGR/Exigibles.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGR/Firmes.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGR/No_localizados.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/AGR/03_02_26/Sentencias.csv'
+        ]
+        
+        # Obtener fecha de publicación desde el primer CSV
+        fecha_publicacion = None
+        if urls:
+            logs.append(f"📥 Obteniendo fecha de publicación desde {urls[0]}...")
+            try:
+                import requests
+                response = requests.get(urls[0], timeout=30)
+                response.raise_for_status()
+                csv_content = response.content.decode('utf-8', errors='replace')
+                fecha_publicacion = extraer_fecha_desde_csv(csv_content)
+                print(fecha_publicacion)
+                if fecha_publicacion:
+                    logs.append(f"📅 Fecha publicación extraída: {fecha_publicacion}")
+                else:
+                    logs.append("⚠️ No se pudo extraer fecha, usando fecha actual")
+                    fecha_publicacion = datetime.now().date()
+            except Exception as e:
+                logs.append(f"❌ Error obteniendo fecha: {str(e)}")
+                fecha_publicacion = datetime.now().date()
+        
+        rfcs_validos = obtener_rfcs_existentes(db_name)
+        logs.append(f"🔍 RFCs válidos en la empresa: {len(rfcs_validos)}")
+        all_records = {}
+        for url in urls:
+            logs.append(f"📥 Descargando {url}...")
+            data = descargar_csv(url)
+            logs.append(f"   {len(data)} registros.")
+            for row in data:
+                rfc = row.get('RFC', '').strip()
+                if rfc and rfc in rfcs_validos:
+                    nombre = row.get('RAZON SOCIAL', row.get('Nombre del Contribuyente', '')).strip()
+                    supuesto = row.get('SUPUESTO', '').strip()
+                    nombre = nombre[:255]
+                    supuesto = supuesto[:255]
+                    if rfc not in all_records:
+                        all_records[rfc] = {'nombre': nombre, 'supuesto': supuesto}
+        logs.append(f"📊 RFCs a insertar: {len(all_records)}")
+        fecha_validacion = datetime.now().date()
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("DELETE FROM articulo69")
+            for rfc, info in all_records.items():
+                cursor.execute("""
+                    INSERT INTO articulo69 (rfc, nombre, tipo_supuesto, fecha_validacion, fecha_publicacion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, info['nombre'], info['supuesto'], fecha_validacion, fecha_publicacion])
+        logs.append("✅ Artículo 69 actualizado correctamente.")
+        tasks_status[task_id]['success'] = True
+    except Exception as e:
+        logs.append(f"❌ Error: {str(e)}")
+        tasks_status[task_id]['error'] = str(e)
+    finally:
+        tasks_status[task_id]['finished'] = True
+        tasks_status[task_id]['logs'] = logs
+
+
+
 def run_articulo69b_task(task_id, db_name):
     logs = []
     tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
@@ -4764,22 +4833,52 @@ def run_articulo69b_task(task_id, db_name):
             'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Presuntos.csv',
             'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/SentenciasFavorables.csv'
         ]
+
+        # Obtener fecha de publicación desde el primer CSV
+        fecha_publicacion = None
+        if urls:
+            logs.append(f"📥 Obteniendo fecha de publicación desde {urls[0]}...")
+            try:
+                import requests
+                response = requests.get(urls[0], timeout=30)
+                response.raise_for_status()
+                csv_content = response.content.decode('utf-8', errors='replace')
+                fecha_publicacion = extraer_fecha_desde_csv(csv_content)
+                print(fecha_publicacion)
+                if fecha_publicacion:
+                    logs.append(f"📅 Fecha publicación extraída: {fecha_publicacion}")
+                else:
+                    logs.append("⚠️ No se pudo extraer fecha, usando fecha actual")
+                    fecha_publicacion = datetime.now().date()
+            except Exception as e:
+                logs.append(f"❌ Error obteniendo fecha: {str(e)}")
+                fecha_publicacion = datetime.now().date()
+
+
+
         rfcs_validos = obtener_rfcs_existentes(db_name)
         logs.append(f"🔍 RFCs válidos en la empresa: {len(rfcs_validos)}")
         all_records = {}
         for url in urls:
             logs.append(f"📥 Descargando {url}...")
-            data = descargar_csv(url)
-            logs.append(f"   {len(data)} registros.")
-            for row in data:
-                rfc = row.get('RFC', '').strip()
+            rows = descargar_csv_por_indice(url)
+            logs.append(f"   {len(rows)} registros.")
+
+            # Las columnas según estructura del CSV:
+            # Índice 1: RFC
+            # Índice 2: Nombre del Contribuyente
+            # Índice 3: Situación del contribuyente
+            for row in rows:
+                if len(row) < 4:
+                    continue
+                rfc = row[1].strip().upper()
                 if rfc and rfc in rfcs_validos:
-                    nombre = row.get('Nombre del Contribuyente', '').strip()
-                    situacion = row.get('Situación del contribuyente', '').strip()
-                    nombre = nombre[:255]
-                    situacion = situacion[:255]
+                    nombre = row[2].strip()[:255] if len(row) > 2 else ''
+                    situacion = row[3].strip()[:255] if len(row) > 3 else ''
                     if rfc not in all_records:
                         all_records[rfc] = {'nombre': nombre, 'situacion': situacion}
+
+
         logs.append(f"📊 RFCs a insertar: {len(all_records)}")
         fecha_validacion = datetime.now().date()
         with connections[db_name].cursor() as cursor:
@@ -4800,7 +4899,7 @@ def run_articulo69b_task(task_id, db_name):
 
 
 
-def run_articulo69bis_task(task_id, db_name):
+def run_articulo69bis_task_(task_id, db_name):
     logs = []
     tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
     try:
@@ -4812,21 +4911,103 @@ def run_articulo69bis_task(task_id, db_name):
             'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_SentenciaFa.csv'
         ]
         rfcs_validos = obtener_rfcs_existentes(db_name)
+        print(rfcs_validos)
         logs.append(f"🔍 RFCs válidos en la empresa: {len(rfcs_validos)}")
         all_records = {}
         for url in urls:
             logs.append(f"📥 Descargando {url}...")
-            data = descargar_csv(url)
+            data = descargar_csv_por_indice(url)
+            print(data)
             logs.append(f"   {len(data)} registros.")
             for row in data:
                 rfc = row.get('RFC', '').strip()
+                print(rfc)
                 if rfc and rfc in rfcs_validos:
+                    print(rfc)
                     nombre = row.get('Nombre del Contribuyente', '').strip()
                     situacion = row.get('Situación del contribuyente', '').strip()
                     nombre = nombre[:255]
                     situacion = situacion[:255]
                     if rfc not in all_records:
                         all_records[rfc] = {'nombre': nombre, 'situacion': situacion}
+        logs.append(f"📊 RFCs a insertar: {len(all_records)}")
+        print(all_records)
+        fecha_validacion = datetime.now().date()
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("DELETE FROM articulo69bis")
+            for rfc, info in all_records.items():
+                cursor.execute("""
+                    INSERT INTO articulo69bis (rfc, nombre, tipo_supuesto, fecha_validacion, fecha_publicacion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, info['nombre'], info['situacion'], fecha_validacion, fecha_publicacion])
+        logs.append("✅ Artículo 69-Bis actualizado correctamente.")
+        tasks_status[task_id]['success'] = True
+    except Exception as e:
+        logs.append(f"❌ Error: {str(e)}")
+        tasks_status[task_id]['error'] = str(e)
+    finally:
+        tasks_status[task_id]['finished'] = True
+        tasks_status[task_id]['logs'] = logs
+
+
+def run_articulo69bis_task(task_id, db_name):
+    logs = []
+    tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
+    try:
+        logs.append("🚀 Iniciando actualización de Artículo 69-Bis...")
+        fecha_publicacion = obtener_fecha_publicacion_sat(3)
+        logs.append(f"📅 Fecha publicación: {fecha_publicacion}")
+        urls = [
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_Definitivo.csv',
+            'https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_SentenciaFa.csv'
+        ]
+
+        # Obtener fecha de publicación desde el primer CSV
+        fecha_publicacion = None
+        if urls:
+            logs.append(f"📥 Obteniendo fecha de publicación desde {urls[0]}...")
+            try:
+                import requests
+                response = requests.get(urls[0], timeout=30)
+                response.raise_for_status()
+                csv_content = response.content.decode('utf-8', errors='replace')
+                fecha_publicacion = extraer_fecha_desde_csv(csv_content)
+                print('entro')
+                print(fecha_publicacion)
+                if fecha_publicacion:
+                    logs.append(f"📅 Fecha publicación extraída: {fecha_publicacion}")
+                else:
+                    logs.append("⚠️ No se pudo extraer fecha, usando fecha actual")
+                    fecha_publicacion = datetime.now().date()
+            except Exception as e:
+                print('error')
+                logs.append(f"❌ Error obteniendo fecha: {str(e)}")
+                fecha_publicacion = datetime.now().date()
+        
+        # Obtener RFCs válidos de la empresa
+        rfcs_validos = obtener_rfcs_existentes(db_name)
+        logs.append(f"🔍 RFCs válidos en la empresa: {len(rfcs_validos)}")
+        
+        all_records = {}
+        for url in urls:
+            logs.append(f"📥 Descargando {url}...")
+            rows = descargar_csv_por_indice(url)
+            logs.append(f"   {len(rows)} registros.")
+            
+            # Las columnas según estructura del CSV:
+            # Índice 1: RFC
+            # Índice 2: Nombre del Contribuyente
+            # Índice 3: Situación del contribuyente
+            for row in rows:
+                if len(row) < 4:
+                    continue
+                rfc = row[1].strip().upper()
+                if rfc and rfc in rfcs_validos:
+                    nombre = row[2].strip()[:255] if len(row) > 2 else ''
+                    situacion = row[3].strip()[:255] if len(row) > 3 else ''
+                    if rfc not in all_records:
+                        all_records[rfc] = {'nombre': nombre, 'situacion': situacion}
+        
         logs.append(f"📊 RFCs a insertar: {len(all_records)}")
         fecha_validacion = datetime.now().date()
         with connections[db_name].cursor() as cursor:

@@ -358,7 +358,7 @@ def obtener_fecha_publicacion_sat(indice):
         print(f"Error obteniendo fecha: {e}")
     return datetime.now().date()
 
-def descargar_csv(url):
+def descargar_csv_(url):
     """Descarga un CSV y devuelve lista de diccionarios."""
     try:
         response = requests.get(url, timeout=30)
@@ -370,13 +370,108 @@ def descargar_csv(url):
         print(f"Error descargando {url}: {e}")
         return []
 
+import csv
+import requests
+from io import StringIO
+
+def descargar_csv(url):
+    """Descarga un CSV y devuelve lista de diccionarios, saltando líneas de metadato."""
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        content = response.content.decode('utf-8', errors='replace')
+        lines = content.splitlines()
+        
+        # Buscar la línea que contiene "RFC" (encabezado real)
+        header_index = -1
+        for i, line in enumerate(lines):
+            if 'RFC' in line and ('Nombre' in line or 'Contribuyente' in line):
+                header_index = i
+                break
+        
+        if header_index == -1:
+            # Si no se encuentra, asumir que la primera línea es encabezado (fallback)
+            header_index = 0
+        
+        # Tomar solo las líneas desde el encabezado
+        data_lines = lines[header_index:]
+        csv_content = '\n'.join(data_lines)
+        reader = csv.DictReader(StringIO(csv_content))
+        return list(reader)
+    except Exception as e:
+        print(f"Error descargando CSV {url}: {e}")
+        return []
+
+
+
+
+def descargar_csv_por_indice(url):
+    """
+    Descarga un CSV y devuelve una lista de listas (sin encabezados).
+    Ignora las líneas de metadato hasta encontrar una línea que contenga 'RFC'.
+    """
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        content = response.content.decode('utf-8', errors='replace')
+        lines = content.splitlines()
+        
+        # Buscar la primera línea que contenga 'RFC' (asumimos que es el encabezado)
+        start_index = 0
+        for i, line in enumerate(lines):
+            if 'RFC' in line and ('Nombre' in line or 'Contribuyente' in line):
+                start_index = i + 1  # Los datos empiezan en la siguiente línea
+                break
+        
+        # Procesar las líneas de datos con csv.reader
+        data = []
+        for line in lines[start_index:]:
+            if not line.strip():
+                continue
+            # Usar csv.reader para manejar comillas y separadores correctamente
+            reader = csv.reader([line])
+            for row in reader:
+                # Limpiar cada campo: eliminar espacios y caracteres no deseados
+                clean_row = [col.strip() for col in row]
+                data.append(clean_row)
+        return data
+    except Exception as e:
+        print(f"Error descargando {url}: {e}")
+        return []
+
 def obtener_rfcs_existentes(db_name):
     """Devuelve un set con todos los RFCs que existen en las tablas de la empresa."""
     rfcs = set()
     with connections[db_name].cursor() as cursor:
         # Ajusta el nombre de la columna RFC si es diferente (ej. 'RFC')
         for tabla in ['proveedores', 'proveedores_sin_cfdi', 'clientes', 'clientes_sin_cfdi']:
-            cursor.execute(f"SELECT RFC FROM {tabla} WHERE rfc_identy = %s", [db_name])
+            cursor.execute(f"SELECT RFC FROM {tabla} ")
             for row in cursor.fetchall():
                 rfcs.add(row[0])
     return rfcs
+
+
+import re
+from datetime import datetime
+
+def extraer_fecha_desde_csv(csv_content):
+    """
+    Busca en las primeras líneas del CSV una cadena con el patrón:
+    'Información actualizada al d de mes de año'
+    Retorna la fecha en formato YYYY-MM-DD o None si no se encuentra.
+    """
+    print(csv_content)
+    patron = r'actualizada al (\d{1,2}) de (\w+) de (\d{4})'
+    for line in csv_content.splitlines()[:20]:
+        match = re.search(patron, line, re.IGNORECASE)
+        if match:
+            dia = int(match.group(1))
+            mes_str = match.group(2).lower()
+            anio = int(match.group(3))
+            meses = {
+                'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+                'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+            }
+            mes = meses.get(mes_str, 1)
+            return datetime(anio, mes, dia).date()
+    return None
