@@ -3571,10 +3571,22 @@ def usuario_opiniones_data(request):
 
     data = []
     for row in rows:
+        # Obtener estatus crudo
+        estatus_raw = row[2] if row[2] is not None else ''
+        fecha_opinion = row[3]  # puede ser None o un objeto date
+        # Mapear 'SinRespuesta' según condición
+        if estatus_raw == 'SinRespuesta':
+            if fecha_opinion:
+                estatus_display = 'Opinion No Publica'
+            else:
+                estatus_display = '-'
+        else:
+            estatus_display = estatus_raw
+
         data.append({
             'rfc': row[0] or '',
             'razon_social': row[1] or '',
-            'estatus': row[2] or 'SinRespuesta',
+            'estatus': estatus_display,
             'fecha_opinion': row[3].strftime('%Y-%m-%d') if row[3] else '',
             'opinion': row[4] or 0,
             'tipo': row[5],
@@ -4378,10 +4390,14 @@ def usuario_constancias_data(request):
 
     data = []
     for row in rows:
+
+        constancia_flag = row[4] or 0
+        estatus_display = 'Cargada' if constancia_flag == 1 else 'Sin Cargar'
+
         data.append({
             'rfc': row[0] or '',
             'razon_social': row[1] or '',
-            'estatus': row[2] or 'SinRespuesta',
+            'estatus': estatus_display,
             'fecha_constancia': row[3].strftime('%Y-%m-%d') if row[3] else '',
             'constancia': row[4] or 0,
             'tipo': row[5],
@@ -4446,9 +4462,86 @@ def extraer_datos_constancia(pdf_file):
     except Exception as e:
         raise ValueError(f"Error al procesar el PDF: {str(e)}")
 
+
+
+
+import pdfplumber
+import re
+
+def normalizar_texto(texto):
+    # Inserta saltos de línea antes de cada etiqueta conocida
+    etiquetas = [
+        "CódigoPostal:", "TipodeVialidad:", "NombredeVialidad:", "NúmeroExterior:",
+        "NúmeroInterior:", "NombredelaColonia:", "NombredelaLocalidad:",
+        "NombredelMunicipiooDemarcaciónTerritorial:", "NombredelaEntidadFederativa:",
+        "EntreCalle:", "YCalle:"
+    ]
+    for etiqueta in etiquetas:
+        texto = texto.replace(etiqueta, "\n" + etiqueta)
+    return texto
+
+
+
+def extraer_datos_constancia(archivo_pdf):
+    texto = ""
+    with pdfplumber.open(archivo_pdf) as pdf:
+        for page in pdf.pages:
+            texto += page.extract_text()
+
+
+    texto = normalizar_texto(texto)
+
+    print('TEXTO')
+    print(texto)
+
+
+    datos = {}
+
+    # RFC
+    rfc_match = re.search(r"RFC:\s*([A-Z0-9]+)", texto)
+    if not rfc_match:
+        raise ValueError("No se encontró RFC en el PDF")
+    datos['rfc'] = rfc_match.group(1)
+
+    # Fecha constancia
+    fecha_match = re.search(r"(\d{1,2} DE [A-Z]+ DE \d{4})", texto)
+    if fecha_match:
+        try:
+            datos['fecha_constancia'] = datetime.strptime(fecha_match.group(1), "%d DE %B DE %Y")
+        except Exception:
+            datos['fecha_constancia'] = datetime.today()
+    else:
+        datos['fecha_constancia'] = datetime.today()
+
+    # Datos de ubicación
+    cp = re.search(r"CódigoPostal: *(\d+)", texto)
+    print('CP')
+    print(cp)
+    calle = re.search(r"NombredeVialidad: *([A-Z\s]+)", texto)
+    no_ext = re.search(r"NúmeroExterior: *(\d+)", texto)
+    no_int = re.search(r"NúmeroInterior:\s*([A-Z0-9]*)", texto)
+    colonia = re.search(r"NombredelaColonia: *(.+)", texto)
+    localidad = re.search(r"NombredelaLocalidad: *(.+)", texto)
+    municipio = re.search(r"NombredelMunicipiooDemarcaciónTerritorial: *(.+)", texto)
+    estado = re.search(r"NombredelaEntidadFederativa: *(.+)", texto)
+
+    datos['codigoPostal'] = cp.group(1) if cp else ""
+    datos['calle'] = calle.group(1).strip() if calle else ""
+    datos['noExt'] = no_ext.group(1) if no_ext else ""
+    datos['noInt'] = no_int.group(1).strip() if no_int else ""
+    datos['colonia'] = colonia.group(1).strip() if colonia else ""
+    datos['ciudad'] = localidad.group(1).strip() if localidad else ""
+    datos['municipio'] = municipio.group(1).strip() if municipio else ""
+    datos['estado'] = estado.group(1).strip() if estado else ""
+
+    return datos
+
+
+
+
 @usuario_required
 @csrf_exempt
-def usuario_constancias_subir(request):
+def usuario_constancias_subir____(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
 
@@ -4482,14 +4575,14 @@ def usuario_constancias_subir(request):
             'error': 'RFC no coincide',
             'extracted_rfc': datos['rfc'],
             'extracted_data': {
-                'codigoPostal': datos['codigoPostal'],
-                'calle': datos['calle'],
-                'noInt': datos['noInt'],
-                'noExt': datos['noExt'],
-                'colonia': datos['colonia'],
-                'estado': datos['estado'],
-                'municipio': datos['municipio'],
-                'ciudad': datos['ciudad'],
+                'CodigoPostal': datos['codigoPostal'],
+                'Calle': datos['calle'],
+                'NoInt': datos['noInt'],
+                'NoExt': datos['noExt'],
+                'Colonia': datos['colonia'],
+                'Estado': datos['estado'],
+                'Municipio': datos['municipio'],
+                'Ciudad': datos['ciudad'],
             }
         }, status=409)
 
@@ -4546,6 +4639,107 @@ def usuario_constancias_subir(request):
         return JsonResponse({'error': f'Error en base de datos: {str(e)}'}, status=500)
 
     return JsonResponse({'success': True, 'fecha': datos['fecha_constancia'].strftime('%Y-%m-%d')})
+
+
+def usuario_constancias_subir(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    if 'pdf' not in request.FILES:
+        return JsonResponse({'error': 'No se envió ningún archivo'}, status=400)
+
+    archivo = request.FILES['pdf']
+    if not archivo.name.endswith('.pdf'):
+        return JsonResponse({'error': 'Solo se aceptan archivos PDF'}, status=400)
+
+    rfc_seleccionado = request.POST.get('rfc')
+    tipo = request.POST.get('tipo')
+    if not rfc_seleccionado or not tipo:
+        return JsonResponse({'error': 'Faltan datos (RFC o tipo)'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    # Extraer datos del PDF
+    try:
+        datos = extraer_datos_constancia(archivo)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    # Verificar que el RFC extraído coincida con el seleccionado
+    if datos['rfc'] != rfc_seleccionado:
+        return JsonResponse({
+            'error': 'RFC no coincide',
+            'extracted_rfc': datos['rfc'],
+            'extracted_data': {
+                'codigoPostal': datos['codigoPostal'],
+                'calle': datos['calle'],
+                'noInt': datos['noInt'],
+                'noExt': datos['noExt'],
+                'colonia': datos['colonia'],
+                'estado': datos['estado'],
+                'municipio': datos['municipio'],
+                'ciudad': datos['ciudad'],
+            }
+        }, status=409)
+
+    # Guardar el PDF en la ruta definitiva
+    año = datos['fecha_constancia'].year
+    mes = datos['fecha_constancia'].month
+    ruta = os.path.join('constancia', rfc_seleccionado, str(año), f"{mes:02d}")
+    nombre_archivo = f"{rfc_seleccionado}_{datos['fecha_constancia'].strftime('%Y%m%d')}.pdf"
+    archivo.seek(0)
+    path = default_storage.save(os.path.join(ruta, nombre_archivo), ContentFile(archivo.read()))
+
+    tabla_map = {
+        'proveedor': 'proveedores',
+        'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+        'cliente': 'clientes',
+        'cliente_sin_cfdi': 'clientes_sin_cfdi'
+    }
+    tabla = tabla_map.get(tipo)
+    if not tabla:
+        return JsonResponse({'error': 'Tipo de entidad inválido'}, status=400)
+
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO constancias_historial 
+                (rfc, tipo, archivo_pdf, fecha_constancia, codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, [
+                rfc_seleccionado, tipo, path, datos['fecha_constancia'],
+                datos['codigoPostal'], datos['calle'], datos['noInt'], datos['noExt'],
+                datos['colonia'], datos['estado'], datos['municipio'], datos['ciudad']
+            ])
+
+            sql = f"""
+                UPDATE {tabla}
+                SET constancia = 1, fecha_constancia = %s,
+                    codigoPostal = %s, calle = %s, noInt = %s, noExt = %s,
+                    colonia = %s, estado = %s, municipio = %s, ciudad = %s
+                WHERE RFC = %s AND rfc_identy = %s
+            """
+            cursor.execute(sql, [
+                datos['fecha_constancia'],
+                datos['codigoPostal'], datos['calle'], datos['noInt'], datos['noExt'],
+                datos['colonia'], datos['estado'], datos['municipio'], datos['ciudad'],
+                rfc_seleccionado, rfc_empresa
+            ])
+            if cursor.rowcount == 0:
+                return JsonResponse({'error': 'No se encontró el registro para actualizar'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': f'Error en base de datos: {str(e)}'}, status=500)
+
+    return JsonResponse({'success': True, 'fecha': datos['fecha_constancia'].strftime('%Y-%m-%d')})
+
+
+
+
+
+
 
 @usuario_required
 def usuario_constancias_historial(request, rfc):
