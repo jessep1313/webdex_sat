@@ -177,9 +177,15 @@ urlpatterns = [
     path('usuario/articulo69bis/actualizar/', core_views.usuario_articulo69bis_actualizar, name='usuario_articulo69bis_actualizar'),
     path('usuario/articulo69bis/status/<str:task_id>/', core_views.usuario_articulo69bis_status, name='usuario_articulo69bis_status'),
 
+    # REPSE
+    path('repse/', core_views.repse_lista, name='repse_lista'),
+    path('repse/data/', core_views.repse_data, name='repse_data'),
+    path('repse/subir/', core_views.repse_subir, name='repse_subir'),
 
-
-    
+    # REPSE - descarga e historial
+    path('repse/descargar/<str:rfc>/<str:tipo>/', core_views.repse_descargar_ultimo, name='repse_descargar_ultimo'),
+    path('repse/historial/<str:rfc>/<str:tipo>/', core_views.repse_historial_json, name='repse_historial_json'),
+    path('repse/descargar-historial/<int:id_historial>/', core_views.repse_descargar_historial, name='repse_descargar_historial'),
     
 
 ]

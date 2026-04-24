@@ -1,0 +1,381 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}REPSE - Documentación{% endblock %}
+{% block content_title %}REPSE - Cumplimiento Normativo{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<style>
+    .badge-success {
+        background-color: #28a745 !important;
+        color: white;
+        padding: 5px 8px;
+        border-radius: 50%;
+        font-size: 12px;
+        display: inline-block;
+        width: 24px;
+        text-align: center;
+    }
+    .badge-danger {
+        background-color: #dc3545 !important;
+        color: white;
+        padding: 5px 8px;
+        border-radius: 50%;
+        font-size: 12px;
+        display: inline-block;
+        width: 28px;
+        text-align: center;
+    }
+    .download-latest {
+        cursor: pointer;
+    }
+    .btn-history {
+        margin-left: 4px;
+    }
+    .upload-btn {
+        padding: 5px 12px;
+        font-size: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Documentación REPSE por Proveedor/Cliente</h3>
+        <div class="card-tools">
+            <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#modalAyuda">
+                <i class="bi bi-question-circle"></i> Significado de columnas
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="tablaRepse" class="table table-bordered table-striped" style="width:100%">
+            <thead>
+                <tr>
+                    <th>RFC</th>
+                    <th>Razón Social</th>
+                    <th>A.R.</th>
+                    <th>C.P.I.</th>
+                    <th>C.L.</th>
+                    <th>C.D.C.M.</th>
+                    <th>C.D.C.B.</th>
+                    <th>C.N.</th>
+                    <th>D.P.S.</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal de ayuda -->
+<div class="modal fade" id="modalAyuda" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Significado de las columnas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul>
+                    <li><strong>A.R.</strong> - Autorización REPSE</li>
+                    <li><strong>C.P.I.</strong> - Comprobantes Pago IMSS</li>
+                    <li><strong>C.L.</strong> - Contratos Laborales</li>
+                    <li><strong>C.D.C.M.</strong> - Cédulas Cuotas / Mensual</li>
+                    <li><strong>C.D.C.B.</strong> - Cédulas Cuotas / Bimestral</li>
+                    <li><strong>C.N.</strong> - CFDI's Nómina</li>
+                    <li><strong>D.P.S.</strong> - Declaración y Pagos SAT</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para subir ZIP -->
+<div class="modal fade" id="modalSubirZIP" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Subir documento REPSE</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formSubirZIP" enctype="multipart/form-data">
+                    <input type="hidden" id="upload_rfc">
+                    <div class="mb-3">
+                        <label for="tipo_documento" class="form-label">Tipo de documento</label>
+                        <select class="form-select" id="tipo_documento" required>
+                            <option value="">Seleccione...</option>
+                            <option value="AR">A.R. - Autorización REPSE</option>
+                            <option value="CPI">C.P.I. - Comprobantes Pago IMSS</option>
+                            <option value="CL">C.L. - Contratos Laborales</option>
+                            <option value="CDCM">C.D.C.M. - Cédulas Cuotas / Mensual</option>
+                            <option value="CDCB">C.D.C.B. - Cédulas Cuotas / Bimestral</option>
+                            <option value="CN">C.N. - CFDI's Nómina</option>
+                            <option value="DPS">D.P.S. - Declaración y Pagos SAT</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="zipFile" class="form-label">Archivo ZIP</label>
+                        <input type="file" class="form-control" id="zipFile" accept=".zip" required>
+                    </div>
+                </form>
+                <div id="uploadResult" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btnSubirZIP" class="btn btn-primary">Subir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Historial -->
+<div class="modal fade" id="modalHistorial" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historial de cargas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>RFC:</strong> <span id="historialRFC"></span></p>
+                <p><strong>Tipo documento:</strong> <span id="historialTipo"></span></p>
+                <table class="table table-sm" id="historialTabla">
+                    <thead>
+                        <tr><th>Usuario</th><th>Fecha</th><th>Archivo</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    let dataTable;
+
+    function cargarTabla() {
+        $.ajax({
+            url: "{% url 'repse_data' %}",
+            method: "GET",
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(data) {
+                if (dataTable) dataTable.clear().destroy();
+                dataTable = $('#tablaRepse').DataTable({
+                    data: data,
+                    columns: [
+                        { data: 'rfc' },
+                        { data: 'razon_social' },
+                        {
+                            data: 'AR',
+                            render: function(val, type, row) {
+                                if (val == 1) {
+                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="AR" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
+                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="AR" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                } else {
+                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
+                                }
+                            }
+                        },
+                        {
+                            data: 'CPI',
+                            render: function(val, type, row) {
+                                if (val == 1) {
+                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CPI" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
+                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CPI" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                } else {
+                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
+                                }
+                            }
+                        },
+                        {
+                            data: 'CL',
+                            render: function(val, type, row) {
+                                if (val == 1) {
+                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CL" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
+                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CL" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                } else {
+                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
+                                }
+                            }
+                        },
+                        {
+                            data: 'CDCM',
+                            render: function(val, type, row) {
+                                if (val == 1) {
+                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CDCM" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
+                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CDCM" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                } else {
+                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
+                                }
+                            }
+                        },
+                        {
+                            data: 'CDCB',
+                            render: function(val, type, row) {
+                                if (val == 1) {
+                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CDCB" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
+                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CDCB" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                } else {
+                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
+                                }
+                            }
+                        },
+                        {
+                            data: 'CN',
+                            render: function(val, type, row) {
+                                if (val == 1) {
+                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CN" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
+                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CN" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                } else {
+                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
+                                }
+                            }
+                        },
+                        {
+                            data: 'DPS',
+                            render: function(val, type, row) {
+                                if (val == 1) {
+                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="DPS" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
+                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="DPS" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                } else {
+                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
+                                }
+                            }
+                        },
+                        {
+                            data: null,
+                            render: function(row) {
+                                return `<button class="btn btn-sm btn-primary upload-btn" data-rfc="${row.rfc}"><i class="bi bi-upload"></i> Cargar</button>`;
+                            }
+                        }
+                    ],
+                    language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                    pageLength: 20,
+                    order: [[0, 'asc']],
+                    columnDefs: [{ orderable: false, targets: [2,3,4,5,6,7,8,9] }]
+                });
+            },
+            error: function() { alert('Error al cargar datos'); }
+        });
+    }
+
+    $(document).ready(function() {
+        cargarTabla();
+
+        // Descargar último archivo al hacer clic en el check verde
+        $('#tablaRepse').on('click', '.download-latest', function(e) {
+            e.preventDefault();
+            const rfc = $(this).data('rfc');
+            const tipo = $(this).data('tipo');
+            window.location.href = `/repse/descargar/${rfc}/${tipo}/`;
+        });
+
+        // Mostrar historial para un tipo específico
+        $('#tablaRepse').on('click', '.btn-history', function(e) {
+            e.preventDefault();
+            const rfc = $(this).data('rfc');
+            const tipo = $(this).data('tipo');
+            mostrarHistorial(rfc, tipo);
+        });
+
+        function mostrarHistorial(rfc, tipo) {
+            $('#historialRFC').text(rfc);
+            $('#historialTipo').text(tipo);
+            const tbody = $('#historialTabla tbody');
+            tbody.empty();
+            $('#modalHistorial').modal('show');
+            $.ajax({
+                url: `/repse/historial/${rfc}/${tipo}/`,
+                method: "GET",
+                success: function(data) {
+                    if (data.length === 0) {
+                        tbody.append('<tr><td colspan="3" class="text-center">No hay registros históricos</td></tr>');
+                    } else {
+                        data.forEach(item => {
+                            tbody.append(`
+                                <tr>
+                                    <td>${escapeHtml(item.usuario)}</td>
+                                    <td>${escapeHtml(item.fecha_carga)}</td>
+                                    <td><a href="/repse/descargar-historial/${item.id}/" class="btn btn-sm btn-primary">Descargar</a></td>
+                                </tr>
+                            `);
+                        });
+                    }
+                },
+                error: function() {
+                    tbody.append('<tr><td colspan="3" class="text-center text-danger">Error al cargar historial</td></tr>');
+                }
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // Subir ZIP (código original, se preserva)
+        $('#tablaRepse').on('click', '.upload-btn', function() {
+            const rfc = $(this).data('rfc');
+            $('#upload_rfc').val(rfc);
+            $('#tipo_documento').val('');
+            $('#zipFile').val('');
+            $('#uploadResult').hide();
+            $('#modalSubirZIP').modal('show');
+        });
+
+        $('#btnSubirZIP').click(function() {
+            const rfc = $('#upload_rfc').val();
+            const tipo = $('#tipo_documento').val();
+            const file = $('#zipFile')[0].files[0];
+            if (!tipo) { alert('Seleccione el tipo de documento'); return; }
+            if (!file) { alert('Seleccione un archivo ZIP'); return; }
+            const formData = new FormData();
+            formData.append('rfc', rfc);
+            formData.append('tipo', tipo);
+            formData.append('zip_file', file);
+            $.ajax({
+                url: "{% url 'repse_subir' %}",
+                method: "POST",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(resp) {
+                    if (resp.success) {
+                        $('#uploadResult').html('<div class="alert alert-success">Documento subido correctamente.</div>').show();
+                        setTimeout(function() {
+                            $('#modalSubirZIP').modal('hide');
+                            cargarTabla();
+                        }, 1500);
+                    } else {
+                        $('#uploadResult').html(`<div class="alert alert-danger">Error: ${resp.error}</div>`).show();
+                    }
+                },
+                error: function(xhr) {
+                    let msg = xhr.responseJSON?.error || 'Error de conexión';
+                    $('#uploadResult').html(`<div class="alert alert-danger">${msg}</div>`).show();
+                }
+            });
+        });
+
+        $('#modalSubirZIP').on('hidden.bs.modal', function() {
+            $('#zipFile').val('');
+            $('#tipo_documento').val('');
+            $('#uploadResult').hide().html('');
+        });
+    });
+</script>
+{% endblock %}

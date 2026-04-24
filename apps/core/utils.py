@@ -309,6 +309,24 @@ CREATE TABLE IF NOT EXISTS constancias_historial (
     municipio VARCHAR(255),
     ciudad VARCHAR(255)
 );
+-- Tabla repse_documentos
+CREATE TABLE IF NOT EXISTS repse_documentos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rfc VARCHAR(13) NOT NULL,
+    tipo_documento VARCHAR(10) NOT NULL,
+    archivo_zip VARCHAR(255) NOT NULL,
+    fecha_carga DATETIME DEFAULT CURRENT_TIMESTAMP,
+    usuario VARCHAR(150) NULL
+);
+CREATE TABLE IF NOT EXISTS repse_documentos_historial (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rfc VARCHAR(13) NOT NULL,
+    tipo_documento VARCHAR(10) NOT NULL,
+    archivo_zip VARCHAR(500) NOT NULL,
+    usuario VARCHAR(255) NOT NULL,
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_rfc_tipo (rfc, tipo_documento)
+);
 
 """
     with connections[db_name].cursor() as cursor:

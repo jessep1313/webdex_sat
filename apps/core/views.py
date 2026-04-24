@@ -5349,3 +5349,201 @@ def usuario_articulo69bis_status(request, task_id):
         'success': status.get('success', False),
         'error': status.get('error')
     })
+
+
+# ========== REPSE ==========
+from django.db import connections
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.conf import settings
+import os
+
+TIPOS_REPSE = [
+    ('AR', 'Autorización REPSE'),
+    ('CPI', 'Comprobantes Pago IMSS'),
+    ('CL', 'Contratos Laborales'),
+    ('CDCM', 'Cédulas Cuotas / Mensual'),
+    ('CDCB', 'Cédulas Cuotas / Bimestral'),
+    ('CN', 'CFDI\'s Nómina'),
+    ('DPS', 'Declaración y Pagos SAT'),
+]
+
+@usuario_required
+def repse_lista(request):
+    return render(request, 'core/usuario/repse_lista.html')
+
+@usuario_required
+def repse_data(request):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    # Obtener todos los RFCs de las cuatro tablas
+    entidades = {}
+    with connections[db_name].cursor() as cursor:
+        for tabla in ['proveedores', 'proveedores_sin_cfdi', 'clientes', 'clientes_sin_cfdi']:
+            cursor.execute(f"SELECT RFC, RazonSocial FROM {tabla} WHERE rfc_identy = %s", [rfc_empresa])
+            for row in cursor.fetchall():
+                rfc = row[0].strip() if row[0] else ''
+                razon = row[1].strip() if row[1] else ''
+                if rfc and rfc not in entidades:
+                    entidades[rfc] = razon
+
+    # Obtener documentos cargados
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT rfc, tipo_documento FROM repse_documentos")
+        docs = cursor.fetchall()
+    cargados = {}
+    for rfc, tipo in docs:
+        cargados.setdefault(rfc, set()).add(tipo)
+
+    # Construir JSON
+    data = []
+    tipos = [t[0] for t in TIPOS_REPSE]
+    for rfc, razon in entidades.items():
+        fila = {'rfc': rfc, 'razon_social': razon}
+        for t in tipos:
+            fila[t] = 1 if t in cargados.get(rfc, set()) else 0
+        data.append(fila)
+    return JsonResponse(data, safe=False)
+
+@usuario_required
+@csrf_exempt
+def repse_subir(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    rfc = request.POST.get('rfc')
+    tipo = request.POST.get('tipo')
+    if not rfc or not tipo:
+        return JsonResponse({'error': 'Faltan RFC o tipo'}, status=400)
+
+    if 'zip_file' not in request.FILES:
+        return JsonResponse({'error': 'No se envió archivo'}, status=400)
+
+    archivo = request.FILES['zip_file']
+    if not archivo.name.endswith('.zip'):
+        return JsonResponse({'error': 'Solo se aceptan archivos ZIP'}, status=400)
+
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    # Validar que el RFC pertenezca a la empresa
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT RFC FROM proveedores WHERE rfc_identy = %s AND RFC = %s
+                UNION
+                SELECT RFC FROM proveedores_sin_cfdi WHERE rfc_identy = %s AND RFC = %s
+                UNION
+                SELECT RFC FROM clientes WHERE rfc_identy = %s AND RFC = %s
+                UNION
+                SELECT RFC FROM clientes_sin_cfdi WHERE rfc_identy = %s AND RFC = %s
+            ) AS t
+        """, [rfc_empresa, rfc] * 4)
+        if cursor.fetchone()[0] == 0:
+            return JsonResponse({'error': 'RFC no pertenece a esta empresa'}, status=400)
+
+    # Guardar archivo
+    ruta = os.path.join('repse', rfc, tipo)
+    nombre_archivo = f"{rfc}_{tipo}_{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
+    path = default_storage.save(os.path.join(ruta, nombre_archivo), ContentFile(archivo.read()))
+
+    # Insertar o actualizar en la tabla
+    usuario = request.session.get('user_nombre', '')
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO repse_documentos (rfc, tipo_documento, archivo_zip, usuario)
+            VALUES (%s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                archivo_zip = VALUES(archivo_zip),
+                fecha_carga = CURRENT_TIMESTAMP,
+                usuario = VALUES(usuario)
+        """, [rfc, tipo, path, usuario])
+
+    # Insertar en historial
+    usuario = request.session.get('user_nombre', request.session.get('user_email', 'Anónimo'))
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO repse_documentos_historial (rfc, tipo_documento, archivo_zip, usuario)
+            VALUES (%s, %s, %s, %s)
+        """, [rfc, tipo, path, usuario])
+
+    return JsonResponse({'success': True})
+
+
+from django.http import FileResponse, Http404
+
+def repse_descargar_ultimo(request, rfc, tipo):
+    """Descarga el último ZIP subido para un RFC y tipo de documento."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        raise Http404("No se ha identificado la empresa")
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute(
+            "SELECT archivo_zip FROM repse_documentos WHERE rfc = %s AND tipo_documento = %s",
+            [rfc, tipo]
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise Http404("No se encontró el documento solicitado")
+        file_path = row[0]
+
+    full_path = os.path.join(settings.MEDIA_ROOT, file_path)
+    if not os.path.exists(full_path):
+        raise Http404("El archivo ya no existe en el servidor")
+    return FileResponse(open(full_path, 'rb'), as_attachment=True, filename=os.path.basename(file_path))
+
+
+def repse_historial_json(request, rfc, tipo):
+    """Retorna JSON con el historial de cargas para un RFC y tipo."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT id, archivo_zip, usuario, fecha_carga
+            FROM repse_documentos_historial
+            WHERE rfc = %s AND tipo_documento = %s
+            ORDER BY fecha_carga DESC
+        """, [rfc, tipo])
+        rows = cursor.fetchall()
+
+    data = []
+    for row in rows:
+        data.append({
+            'id': row[0],
+            'archivo_zip': row[1],
+            'usuario': row[2],
+            'fecha_carga': row[3].strftime('%d/%m/%Y %H:%M:%S') if row[3] else ''
+        })
+    return JsonResponse(data, safe=False)
+
+
+def repse_descargar_historial(request, id_historial):
+    """Descarga un archivo específico del historial."""
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        raise Http404("No se ha identificado la empresa")
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT archivo_zip FROM repse_documentos_historial WHERE id = %s", [id_historial])
+        row = cursor.fetchone()
+        if not row:
+            raise Http404("Registro no encontrado")
+        file_path = row[0]
+
+    full_path = os.path.join(settings.MEDIA_ROOT, file_path)
+    if not os.path.exists(full_path):
+        raise Http404("El archivo ya no existe en el servidor")
+    return FileResponse(open(full_path, 'rb'), as_attachment=True, filename=os.path.basename(file_path))
