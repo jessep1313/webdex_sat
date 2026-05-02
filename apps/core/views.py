@@ -13,6 +13,7 @@ import json
 import traceback
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from .views_reportes import reporte_adhoc, reporte_metadata, reporte_ejecutar
 
 
 

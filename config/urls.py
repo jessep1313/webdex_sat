@@ -18,12 +18,18 @@ from django.contrib import admin
 from django.urls import path
 from apps.core import views
 from apps.core import views as core_views
+from apps.core.views_reportes import reporte_adhoc, reporte_metadata, reporte_ejecutar, reportes_data
+
+
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', core_views.login_view, name='login'),
     path('dashboard/', core_views.dashboard, name='dashboard'),
+    path('usuario/reportes/data/', reportes_data, name='usuario_reportes_data'),
+    
+
     path('logout/', core_views.logout_view, name='logout'),
 
     # ... rutas existentes (login, dashboard, logout)
@@ -188,4 +194,9 @@ urlpatterns = [
     path('repse/descargar-historial/<int:id_historial>/', core_views.repse_descargar_historial, name='repse_descargar_historial'),
     
 
+
+    # Reportes ad-hoc
+    path('usuario/reportes/', reporte_adhoc, name='usuario_reportes'),
+    path('usuario/reporte/metadata/', reporte_metadata, name='reporte_metadata'),
+    path('usuario/reporte/ejecutar/', reporte_ejecutar, name='reporte_ejecutar'),
 ]

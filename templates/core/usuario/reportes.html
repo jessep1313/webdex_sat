@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Reportes - Plataforma Fiscal{% endblock %}
+{% block content_title %}Módulo de Reportes{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    .chart-container { position: relative; height: 400px; margin-bottom: 2rem; }
+    .filtros-panel { background: #f8f9fa; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Tipos de Reporte</h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="nav nav-pills flex-column" id="reporte-tabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-reporte="cfdi_mensual" href="#">
+                            <i class="bi bi-bar-chart"></i> CFDI Mensual
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-reporte="top_proveedores" href="#">
+                            <i class="bi bi-trophy"></i> Top 10 Proveedores
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-reporte="opiniones_status" href="#">
+                            <i class="bi bi-chart-pie"></i> Opiniones de Cumplimiento
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-reporte="proveedores_listas_negras" href="#">
+                            <i class="bi bi-exclamation-triangle"></i> Proveedores en Listas Negras
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-reporte="constancias_domicilio" href="#">
+                            <i class="bi bi-house-check"></i> Constancias y Domicilio
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Reporte</h5>
+                <div class="card-tools">
+                    <button type="button" class="btn btn-sm btn-success" id="export-excel">
+                        <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="filtros-panel" id="filtros-panel" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label>Fecha Inicio</label>
+                            <input type="date" id="fecha_inicio" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label>Fecha Fin</label>
+                            <input type="date" id="fecha_fin" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label>RFC (opcional)</label>
+                            <input type="text" id="filtro_rfc" class="form-control" placeholder="RFC específico">
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <button id="aplicar-filtros" class="btn btn-primary">Aplicar Filtros</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="chart-container" class="chart-container"></div>
+                <div class="table-responsive mt-4">
+                    <table id="reporte-tabla" class="table table-bordered table-striped" style="width:100%">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+    let currentChart = null;
+    let currentDataTable = null;
+    let currentReporte = 'cfdi_mensual';
+
+    $(document).ready(function() {
+        // Cambiar de reporte
+        $('#reporte-tabs .nav-link').click(function(e) {
+            e.preventDefault();
+            $('#reporte-tabs .nav-link').removeClass('active');
+            $(this).addClass('active');
+            currentReporte = $(this).data('reporte');
+            // Mostrar filtros solo para reportes que soporten fechas
+            if (currentReporte === 'cfdi_mensual' || currentReporte === 'top_proveedores') {
+                $('#filtros-panel').show();
+            } else {
+                $('#filtros-panel').hide();
+            }
+            cargarReporte();
+        });
+
+        $('#aplicar-filtros').click(function() {
+            cargarReporte();
+        });
+
+        $('#export-excel').click(function() {
+            exportarExcel();
+        });
+
+        function cargarReporte() {
+            const filtros = {
+                fecha_inicio: $('#fecha_inicio').val(),
+                fecha_fin: $('#fecha_fin').val(),
+                rfc: $('#filtro_rfc').val()
+            };
+            $.ajax({
+                url: "{% url 'usuario_reportes_data' %}",
+                method: "POST",
+                contentType: "application/json",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                data: JSON.stringify({
+                    reporte: currentReporte,
+                    filtros: filtros
+                }),
+                success: function(response) {
+                    if (response.error) {
+                        alert(response.error);
+                        return;
+                    }
+                    renderizarReporte(currentReporte, response.data);
+                },
+                error: function(xhr) {
+                    alert('Error al cargar el reporte: ' + xhr.responseText);
+                }
+            });
+        }
+
+        function renderizarReporte(tipo, data) {
+            // Destruir gráfico anterior si existe
+            if (currentChart) {
+                currentChart.destroy();
+                currentChart = null;
+            }
+            // Limpiar contenedor
+            $('#chart-container').empty();
+
+            if (tipo === 'cfdi_mensual') {
+                renderizarCFDIMensual(data);
+            } else if (tipo === 'top_proveedores') {
+                renderizarTopProveedores(data);
+            } else if (tipo === 'opiniones_status') {
+                renderizarOpinionesStatus(data);
+            } else if (tipo === 'proveedores_listas_negras') {
+                renderizarListasNegras(data);
+            } else if (tipo === 'constancias_domicilio') {
+                renderizarConstanciasDomicilio(data);
+            }
+        }
+
+        function renderizarCFDIMensual(data) {
+            // Crear canvas para gráfico
+            const canvas = document.createElement('canvas');
+            $('#chart-container').append(canvas);
+            const ctx = canvas.getContext('2d');
+            const meses = data.map(d => d.mes);
+            const recibidosMontos = data.map(d => d.recibidos_monto);
+            const emitidosMontos = data.map(d => d.emitidos_monto);
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: meses,
+                    datasets: [
+                        { label: 'Recibidos (Monto)', data: recibidosMontos, backgroundColor: 'rgba(54, 162, 235, 0.5)' },
+                        { label: 'Emitidos (Monto)', data: emitidosMontos, backgroundColor: 'rgba(255, 99, 132, 0.5)' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+            // Tabla
+            const columns = [
+                { title: 'Mes', data: 'mes' },
+                { title: 'Recibidos Cantidad', data: 'recibidos_cantidad' },
+                { title: 'Recibidos Monto', data: 'recibidos_monto' },
+                { title: 'Emitidos Cantidad', data: 'emitidos_cantidad' },
+                { title: 'Emitidos Monto', data: 'emitidos_monto' }
+            ];
+            crearDataTable(data, columns);
+        }
+
+        function renderizarTopProveedores(data) {
+            const canvas = document.createElement('canvas');
+            $('#chart-container').append(canvas);
+            const ctx = canvas.getContext('2d');
+            const nombres = data.map(d => d.nombre.length > 20 ? d.nombre.substring(0,20)+'...' : d.nombre);
+            const montos = data.map(d => d.monto_total);
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: nombres,
+                    datasets: [{ label: 'Monto Total', data: montos, backgroundColor: 'rgba(75, 192, 192, 0.5)' }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: true }
+            });
+            const columns = [
+                { title: 'RFC', data: 'rfc' },
+                { title: 'Nombre', data: 'nombre' },
+                { title: 'Total Facturas', data: 'total_facturas' },
+                { title: 'Monto Total', data: 'monto_total' }
+            ];
+            crearDataTable(data, columns);
+        }
+
+        function renderizarOpinionesStatus(data) {
+            const canvas = document.createElement('canvas');
+            $('#chart-container').append(canvas);
+            const ctx = canvas.getContext('2d');
+            const categorias = data.map(d => d.estatus);
+            const totales = data.map(d => d.total);
+            currentChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: categorias,
+                    datasets: [{ data: totales, backgroundColor: ['#28a745', '#dc3545', '#ffc107'] }]
+                },
+                options: { responsive: true }
+            });
+            const columns = [
+                { title: 'Estatus', data: 'estatus' },
+                { title: 'Proveedores', data: 'proveedores' },
+                { title: 'Proveedores sin CFDI', data: 'proveedores_sin_cfdi' },
+                { title: 'Clientes', data: 'clientes' },
+                { title: 'Clientes sin CFDI', data: 'clientes_sin_cfdi' },
+                { title: 'Total', data: 'total' }
+            ];
+            crearDataTable(data, columns);
+        }
+
+        function renderizarListasNegras(data) {
+            $('#chart-container').html('<div class="alert alert-info">No hay gráfico disponible para este reporte</div>');
+            const columns = [
+                { title: 'RFC', data: 'rfc' },
+                { title: 'Nombre', data: 'nombre' },
+                { title: 'Tipo de Lista', data: 'tipo' }
+            ];
+            crearDataTable(data, columns);
+        }
+
+        function renderizarConstanciasDomicilio(data) {
+            // Resumen para gráfico
+            let conConstancia = data.filter(d => d.constancia === 1).length;
+            let sinConstancia = data.filter(d => d.constancia !== 1).length;
+            let conDomicilio = data.filter(d => d.domicilio === 1).length;
+            let sinDomicilio = data.filter(d => d.domicilio !== 1).length;
+
+            const canvas = document.createElement('canvas');
+            $('#chart-container').append(canvas);
+            const ctx = canvas.getContext('2d');
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Constancia', 'Domicilio'],
+                    datasets: [
+                        { label: 'Completado', data: [conConstancia, conDomicilio], backgroundColor: '#28a745' },
+                        { label: 'Pendiente', data: [sinConstancia, sinDomicilio], backgroundColor: '#dc3545' }
+                    ]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            });
+
+            const columns = [
+                { title: 'RFC', data: 'rfc' },
+                { title: 'Nombre', data: 'nombre' },
+                { title: 'Tipo', data: 'tipo' },
+                { title: 'Constancia', data: 'constancia', render: (v) => v === 1 ? 'Sí' : 'No' },
+                { title: 'Domicilio', data: 'domicilio', render: (v) => v === 1 ? 'Validado' : 'No validado' }
+            ];
+            crearDataTable(data, columns);
+        }
+
+        function crearDataTable(data, columns) {
+            if (currentDataTable) {
+                currentDataTable.clear().destroy();
+            }
+            currentDataTable = $('#reporte-tabla').DataTable({
+                data: data,
+                columns: columns,
+                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                pageLength: 10,
+                dom: 'Bfrtip',
+                buttons: ['copy', 'csv', 'excel', 'pdf']
+            });
+        }
+
+        function exportarExcel() {
+            if (currentDataTable) {
+                const data = currentDataTable.rows({ search: 'applied' }).data().toArray();
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+                XLSX.writeFile(wb, `reporte_${currentReporte}_${new Date().toISOString().slice(0,19)}.xlsx`);
+            } else {
+                alert('No hay datos para exportar');
+            }
+        }
+
+        // Cargar reporte inicial
+        cargarReporte();
+    });
+</script>
+{% endblock %}

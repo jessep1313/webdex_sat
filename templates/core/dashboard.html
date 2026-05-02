@@ -4,6 +4,13 @@
 {% block title %}Dashboard{% endblock %}
 {% block content_title %}Panel de Control{% endblock %}
 
+{% block extra_head %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-md-12">
@@ -24,7 +31,7 @@
     </div>
 </div>
 
-<!-- SA Dashboard -->
+<!-- ==================== SUPERADMIN DASHBOARD ==================== -->
 {% if request.session.user_type == 'SA' %}
 <div class="row">
     <div class="col-md-12">
@@ -36,60 +43,39 @@
                 <div class="row">
                     <div class="col-lg-3 col-6">
                         <div class="small-box bg-info">
-                            <div class="inner">
-                                <h3>{{ stats.grupos }}</h3>
-                                <p>Grupos</p>
-                            </div>
+                            <div class="inner"><h3>{{ stats.grupos }}</h3><p>Grupos</p></div>
                         </div>
                     </div>
                     <div class="col-lg-3 col-6">
                         <div class="small-box bg-success">
-                            <div class="inner">
-                                <h3>{{ stats.empresas }}</h3>
-                                <p>Empresas</p>
-                            </div>
+                            <div class="inner"><h3>{{ stats.empresas }}</h3><p>Empresas</p></div>
                         </div>
                     </div>
                     <div class="col-lg-3 col-6">
                         <div class="small-box bg-warning">
-                            <div class="inner">
-                                <h3>{{ stats.sucursales }}</h3>
-                                <p>Sucursales (total)</p>
-                            </div>
+                            <div class="inner"><h3>{{ stats.sucursales }}</h3><p>Sucursales</p></div>
                         </div>
                     </div>
                     <div class="col-lg-3 col-6">
                         <div class="small-box bg-danger">
-                            <div class="inner">
-                                <h3>{{ stats.admins }}</h3>
-                                <p>Administradores</p>
-                            </div>
+                            <div class="inner"><h3>{{ stats.admins }}</h3><p>Administradores</p></div>
                         </div>
                     </div>
                 </div>
                 <div class="row">
                     <div class="col-lg-3 col-6">
                         <div class="small-box bg-secondary">
-                            <div class="inner">
-                                <h3>{{ stats.usuarios }}</h3>
-                                <p>Usuarios normales</p>
-                            </div>
+                            <div class="inner"><h3>{{ stats.usuarios }}</h3><p>Usuarios</p></div>
                         </div>
                     </div>
                     <div class="col-lg-3 col-6">
                         <div class="small-box bg-primary">
-                            <div class="inner">
-                                <h3>{{ stats.fiel_validas }}</h3>
-                                <p>Empresas con FIEL</p>
-                            </div>
+                            <div class="inner"><h3>{{ stats.fiel_validas }}</h3><p>Empresas con FIEL</p></div>
                         </div>
                     </div>
                     <div class="col-lg-3 col-6">
                         <div class="small-box bg-dark">
-                            <div class="inner">
-                                <h3>{{ stats.sin_fiel }}</h3>
-                                <p>Empresas sin FIEL</p>
-                            </div>
+                            <div class="inner"><h3>{{ stats.sin_fiel }}</h3><p>Empresas sin FIEL</p></div>
                         </div>
                     </div>
                 </div>
@@ -97,29 +83,15 @@
         </div>
     </div>
 </div>
-
 <div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Detalle por Empresa</h3>
-    </div>
+    <div class="card-header"><h3 class="card-title">Detalle por Empresa</h3></div>
     <div class="card-body">
         <table id="tablaEmpresas" class="table table-bordered table-striped">
-            <thead>
-                <tr>
-                    <th>Nombre</th>
-                    <th>RFC</th>
-                    <th>Sucursales</th>
-                    <th>Activa</th>
-                    <th>Base de datos</th>
-                    <th>FIEL</th>
-                </tr>
-            </thead>
+            <thead><tr><th>Nombre</th><th>RFC</th><th>Sucursales</th><th>Activa</th><th>Base de datos</th><th>FIEL</th></tr></thead>
             <tbody>
                 {% for emp in empresas_con_sucursales %}
                 <tr>
-                    <td>{{ emp.nombre }}</td>
-                    <td>{{ emp.rfc }}</td>
-                    <td>{{ emp.sucursales }}</td>
+                    <td>{{ emp.nombre }}</td><td>{{ emp.rfc }}</td><td>{{ emp.sucursales }}</td>
                     <td>{% if emp.activo %}Sí{% else %}No{% endif %}</td>
                     <td>{{ emp.db_name }}</td>
                     <td>{% if emp.fiel %}<span class="badge bg-success">Cargada</span>{% else %}<span class="badge bg-danger">No cargada</span>{% endif %}</td>
@@ -129,99 +101,72 @@
         </table>
     </div>
 </div>
+
+<!-- ==================== DASHBOARD PARA ADMINISTRADOR Y USUARIO NORMAL ==================== -->
 {% else %}
-    <!-- 其他角色的 dashboard (A y US) -->
+    <!-- Tarjetas de estadísticas resumen (ya existentes) -->
     {% if stats %}
     <div class="row">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Estadísticas de la empresa</h3>
-                </div>
+                <div class="card-header"><h3 class="card-title">Estadísticas de la empresa</h3></div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-lg-3 col-6">
-                            <div class="small-box bg-info">
-                                <div class="inner">
-                                    <h3>{{ stats.proveedores }}</h3>
-                                    <p>Proveedores</p>
+                        <div class="col-lg-3 col-6"><div class="small-box bg-info"><div class="inner"><h3>{{ stats.proveedores }}</h3><p>Proveedores</p></div></div></div>
+                        <div class="col-lg-3 col-6"><div class="small-box bg-warning"><div class="inner"><h3>{{ stats.proveedores_sin_cfdi }}</h3><p>Proveedores sin CFDI</p></div></div></div>
+                        <div class="col-lg-3 col-6"><div class="small-box bg-success"><div class="inner"><h3>{{ stats.clientes }}</h3><p>Clientes</p></div></div></div>
+                        <div class="col-lg-3 col-6"><div class="small-box bg-secondary"><div class="inner"><h3>{{ stats.clientes_sin_cfdi }}</h3><p>Clientes sin CFDI</p></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección de Reportes Ejecutivos (gráficos y tablas) -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Reportes Ejecutivos</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Fila 1: CFDI Mensual + Top Proveedores -->
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">CFDI Mensual</div>
+                                <div class="card-body">
+                                    <canvas id="chartCFDI" style="height: 300px;"></canvas>
                                 </div>
-                                <div class="icon"><i class="bi bi-people"></i></div>
                             </div>
                         </div>
-                        <div class="col-lg-3 col-6">
-                            <div class="small-box bg-warning">
-                                <div class="inner">
-                                    <h3>{{ stats.proveedores_sin_cfdi }}</h3>
-                                    <p>Proveedores sin CFDI</p>
+
+                    </div>
+
+                    <!-- Fila 2: Opiniones + Listas Negras -->
+                    <div class="row mb-4">
+                        <div class="col-md-5">
+                            <div class="card">
+                                <div class="card-header bg-warning text-white">Opiniones de Cumplimiento</div>
+                                <div class="card-body">
+                                    <canvas id="chartOpiniones" style="height: 250px;"></canvas>
                                 </div>
-                                <div class="icon"><i class="bi bi-file-earmark-text"></i></div>
                             </div>
                         </div>
-                        <div class="col-lg-3 col-6">
-                            <div class="small-box bg-success">
-                                <div class="inner">
-                                    <h3>{{ stats.clientes }}</h3>
-                                    <p>Clientes</p>
+                        <div class="col-md-7">
+                            <div class="card">
+                                <div class="card-header bg-danger text-white">Proveedores en Listas Negras</div>
+                                <div class="card-body">
+                                    <table id="tablaListasNegras" class="table table-sm table-bordered">
+                                        <thead><tr><th>RFC</th><th>Nombre</th><th>Lista(s)</th></tr></thead>
+                                        <tbody></tbody>
+                                    </table>
                                 </div>
-                                <div class="icon"><i class="bi bi-person-badge"></i></div>
-                            </div>
-                        </div>
-                        <div class="col-lg-3 col-6">
-                            <div class="small-box bg-secondary">
-                                <div class="inner">
-                                    <h3>{{ stats.clientes_sin_cfdi }}</h3>
-                                    <p>Clientes sin CFDI</p>
-                                </div>
-                                <div class="icon"><i class="bi bi-person-x"></i></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="row mt-4">
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header bg-primary text-white">
-                                    Opiniones del mes actual
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-4 text-center">
-                                            <span class="badge bg-success" style="font-size: 1.2rem;">{{ stats.opiniones.Positivo }}</span>
-                                            <p>Positivas</p>
-                                        </div>
-                                        <div class="col-4 text-center">
-                                            <span class="badge bg-danger" style="font-size: 1.2rem;">{{ stats.opiniones.Negativo }}</span>
-                                            <p>Negativas</p>
-                                        </div>
-                                        <div class="col-4 text-center">
-                                            <span class="badge bg-secondary" style="font-size: 1.2rem;">{{ stats.opiniones.SinRespuesta }}</span>
-                                            <p>Sin respuesta</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header bg-info text-white">
-                                    CFDI
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-6 text-center">
-                                            <span class="badge bg-success" style="font-size: 1.2rem;">{{ stats.cfdi_recibidos }}</span>
-                                            <p>Recibidos</p>
-                                        </div>
-                                        <div class="col-6 text-center">
-                                            <span class="badge bg-warning" style="font-size: 1.2rem;">{{ stats.cfdi_emitidos }}</span>
-                                            <p>Emitidos</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+         
                 </div>
             </div>
         </div>
@@ -230,4 +175,154 @@
     <div class="alert alert-info">No hay datos de empresa disponibles.</div>
     {% endif %}
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Solo cargar los reportes si el usuario NO es SA
+    {% if request.session.user_type != 'SA' %}
+        // 1. Cargar CFDI mensual
+        $.ajax({
+            url: "{% url 'usuario_reportes_data' %}",
+            method: "POST",
+            contentType: "application/json",
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            data: JSON.stringify({ reporte: 'cfdi_mensual', filtros: {} }),
+            success: function(res) {
+                if (res.data && res.data.length) {
+                    const meses = res.data.map(d => d.mes);
+                    const recibidos = res.data.map(d => d.recibidos_monto);
+                    const emitidos = res.data.map(d => d.emitidos_monto);
+                    new Chart(document.getElementById('chartCFDI'), {
+                        type: 'bar',
+                        data: {
+                            labels: meses,
+                            datasets: [
+                                { label: 'Recibidos (Monto)', data: recibidos, backgroundColor: 'rgba(54, 162, 235, 0.5)' },
+                                { label: 'Emitidos (Monto)', data: emitidos, backgroundColor: 'rgba(255, 99, 132, 0.5)' }
+                            ]
+                        },
+                        options: { responsive: true, maintainAspectRatio: true }
+                    });
+                }
+            }
+        });
+
+        // 2. Top 10 proveedores
+        $.ajax({
+            url: "{% url 'usuario_reportes_data' %}",
+            method: "POST",
+            contentType: "application/json",
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            data: JSON.stringify({ reporte: 'top_proveedores', filtros: {} }),
+            success: function(res) {
+                let tbody = $('#tablaTopProveedores tbody');
+                tbody.empty();
+                if (res.data && res.data.length) {
+                    res.data.forEach(p => {
+                        tbody.append(`<tr><td>${p.rfc}</td><td>${p.nombre}</td><td>${p.monto_total}</td></tr>`);
+                    });
+                } else {
+                    tbody.append('<tr><td colspan="3">No hay datos</td></tr>');
+                }
+            }
+        });
+
+        // 3. Opiniones
+        $.ajax({
+            url: "{% url 'usuario_reportes_data' %}",
+            method: "POST",
+            contentType: "application/json",
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            data: JSON.stringify({ reporte: 'opiniones_status', filtros: {} }),
+            success: function(res) {
+                if (res.data && res.data.length) {
+                    const labels = res.data.map(d => d.estatus);
+                    const valores = res.data.map(d => d.total);
+                    new Chart(document.getElementById('chartOpiniones'), {
+                        type: 'pie',
+                        data: {
+                            labels: labels,
+                            datasets: [{ data: valores, backgroundColor: ['#28a745', '#dc3545', '#ffc107'] }]
+                        }
+                    });
+                }
+            }
+        });
+
+        // 4. Listas negras
+        $.ajax({
+            url: "{% url 'usuario_reportes_data' %}",
+            method: "POST",
+            contentType: "application/json",
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            data: JSON.stringify({ reporte: 'proveedores_listas_negras', filtros: {} }),
+            success: function(res) {
+                let tbody = $('#tablaListasNegras tbody');
+                tbody.empty();
+                if (res.data && res.data.length) {
+                    res.data.forEach(p => {
+                        tbody.append(`<tr><td>${p.rfc}</td><td>${p.nombre}</td><td>${p.tipo}</td></tr>`);
+                    });
+                } else {
+                    tbody.append('<tr><td colspan="3">No hay proveedores en listas negras</td></tr>');
+                }
+            }
+        });
+
+        // 5. Constancias y domicilio (tabla y gráfico)
+        $.ajax({
+            url: "{% url 'usuario_reportes_data' %}",
+            method: "POST",
+            contentType: "application/json",
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            data: JSON.stringify({ reporte: 'constancias_domicilio', filtros: {} }),
+            success: function(res) {
+                // Tabla
+                let tbody = $('#tablaConstancias tbody');
+                tbody.empty();
+                if (res.data && res.data.length) {
+                    res.data.forEach(item => {
+                        let constanciaHtml = item.constancia === 1 ? 'Sí' : 'No';
+                        let domicilioHtml = item.domicilio === 1 ? 'Validado' : 'No validado';
+                        tbody.append(`<tr><td>${item.rfc}</td><td>${item.nombre}</td><td>${item.tipo}</td><td>${constanciaHtml}</td><td>${domicilioHtml}</td></tr>`);
+                    });
+                    // Gráfico
+                    let conConstancia = res.data.filter(d => d.constancia === 1).length;
+                    let sinConstancia = res.data.filter(d => d.constancia !== 1).length;
+                    let conDomicilio = res.data.filter(d => d.domicilio === 1).length;
+                    let sinDomicilio = res.data.filter(d => d.domicilio !== 1).length;
+                    new Chart(document.getElementById('chartConstancias'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['Constancia', 'Domicilio'],
+                            datasets: [
+                                { label: 'Completado', data: [conConstancia, conDomicilio], backgroundColor: '#28a745' },
+                                { label: 'Pendiente', data: [sinConstancia, sinDomicilio], backgroundColor: '#dc3545' }
+                            ]
+                        },
+                        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+                    });
+                } else {
+                    $('#chartConstancias').hide();
+                    tbody.append('<tr><td colspan="5">No hay datos de constancias o domicilios</td></tr>');
+                }
+            }
+        });
+    {% endif %}
+
+    // DataTable para empresas (solo si existe la tabla)
+    if ($('#tablaEmpresas').length) {
+        $('#tablaEmpresas').DataTable({
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 10
+        });
+    }
+});
+</script>
 {% endblock %}

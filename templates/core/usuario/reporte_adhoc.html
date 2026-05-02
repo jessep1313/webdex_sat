@@ -1,0 +1,419 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Generador de Reportes Ad-hoc{% endblock %}
+{% block content_title %}Business Intelligence - Reportes a medida{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    .filtro-row, .agregacion-row {
+        background: #f8f9fa;
+        padding: 8px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }
+    .card-header h5 {
+        margin: 0;
+    }
+    select[multiple] {
+        min-height: 100px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="bi bi-sliders2"></i> Configuración del reporte</h5>
+            </div>
+            <div class="card-body">
+                <!-- Selector de tabla -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">📊 Tabla principal</label>
+                    <select id="tabla-select" class="form-select">
+                        <option value="">Cargando tablas...</option>
+                    </select>
+                    <div class="form-text">Selecciona la tabla base del reporte</div>
+                </div>
+
+                <!-- Columnas a mostrar -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">📋 Columnas a mostrar</label>
+                    <select id="campos-select" class="form-select" multiple size="5">
+                    </select>
+                    <div class="form-text">Ctrl+clic para seleccionar múltiples</div>
+                </div>
+
+                <!-- Filtros dinámicos -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🔍 Filtros</label>
+                    <div id="filtros-container"></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="agregar-filtro">
+                        <i class="bi bi-plus-circle"></i> Agregar filtro
+                    </button>
+                </div>
+
+                <!-- Agrupaciones -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">📌 Agrupar por (GROUP BY)</label>
+                    <select id="groupby-select" class="form-select" multiple size="3">
+                    </select>
+                </div>
+
+                <!-- Agregaciones -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🧮 Agregaciones (SUM, AVG, etc.)</label>
+                    <div id="agregaciones-container"></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="agregar-agregacion">
+                        <i class="bi bi-plus-circle"></i> Agregar agregación
+                    </button>
+                </div>
+
+                <!-- Orden -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🔼 Ordenar por</label>
+                    <select id="orden-select" class="form-select" multiple size="3">
+                    </select>
+                    <div class="form-text">Selecciona columna(s). Por defecto ascendente.</div>
+                </div>
+
+                <!-- Límite -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🔢 Límite de registros</label>
+                    <input type="number" id="limite" class="form-control" value="100" min="1" max="10000">
+                </div>
+
+                <!-- Tipo de gráfico -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">📈 Tipo de gráfico</label>
+                    <select id="tipo-grafico" class="form-select">
+                        <option value="table">📋 Solo tabla</option>
+                        <option value="bar">📊 Gráfico de barras</option>
+                        <option value="pie">🥧 Gráfico de pastel</option>
+                        <option value="line">📉 Gráfico de líneas</option>
+                    </select>
+                </div>
+
+                <button id="ejecutar-reporte" class="btn btn-primary w-100">
+                    <i class="bi bi-play-fill"></i> Ejecutar reporte
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-eye"></i> Resultado</h5>
+                <button id="exportar-xlsx" class="btn btn-sm btn-light">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="loader" style="display:none; text-align:center; padding:20px;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p>Cargando datos...</p>
+                </div>
+                <canvas id="grafico-canvas" style="display:none; max-height:400px; width:100%;"></canvas>
+                <div class="table-responsive">
+                    <table id="tabla-resultados" class="table table-bordered table-striped" style="width:100%">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="sin-datos" class="alert alert-info" style="display:none;">No hay datos para mostrar con los filtros seleccionados.</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+    let currentData = null;
+    let currentChart = null;
+    let dataTable = null;
+    let columnasDisponibles = {};
+    let currentMetadata = {};
+
+    // Cargar metadatos al inicio
+    function cargarTablas() {
+        $("#tabla-select").html('<option value="">Cargando tablas...</option>');
+        $.getJSON("{% url 'reporte_metadata' %}")
+            .done(function(metadata) {
+                currentMetadata = metadata;
+                let tablaSelect = $('#tabla-select');
+                tablaSelect.empty();
+                for (let tabla in metadata) {
+                    let nombre = metadata[tabla].comment || tabla;
+                    tablaSelect.append(`<option value="${tabla}">${nombre}</option>`);
+                }
+                if (Object.keys(metadata).length === 0) {
+                    tablaSelect.append('<option value="">No hay tablas disponibles</option>');
+                }
+                // Si hay al menos una tabla, seleccionar la primera
+                let firstTable = Object.keys(metadata)[0];
+                if (firstTable) {
+                    tablaSelect.val(firstTable).trigger('change');
+                }
+            })
+            .fail(function(xhr) {
+                console.error("Error cargando metadatos:", xhr.responseText);
+                $("#tabla-select").html('<option value="">Error al cargar tablas</option>');
+                alert("No se pudieron cargar las tablas. Revise la consola para más detalles.");
+            });
+    }
+
+    // Cuando cambia la tabla, actualizar selects de columnas
+    $('#tabla-select').change(function() {
+        const tabla = $(this).val();
+        if (!tabla || !currentMetadata[tabla]) return;
+        
+        columnasDisponibles = {};
+        currentMetadata[tabla].columns.forEach(col => {
+            columnasDisponibles[col.name] = col;
+        });
+        const colNames = Object.keys(columnasDisponibles);
+        
+        // Llenar selects múltiples
+        $('#campos-select, #groupby-select, #orden-select').empty();
+        colNames.forEach(col => {
+            $('#campos-select, #groupby-select, #orden-select').append(`<option value="${col}">${col}</option>`);
+        });
+        // Seleccionar primeras 5 columnas por defecto
+        $('#campos-select').val(colNames.slice(0, 5));
+        
+        // Limpiar filtros y agregaciones dinámicos
+        $('#filtros-container').empty();
+        $('#agregaciones-container').empty();
+    });
+
+    // Agregar filtro dinámico
+    let filtroIndex = 0;
+    $('#agregar-filtro').click(function() {
+        const idx = filtroIndex++;
+        const colOptions = Object.keys(columnasDisponibles).map(c => `<option value="${c}">${c}</option>`).join('');
+        const filtroHtml = `
+            <div class="filtro-row row g-2" data-idx="${idx}">
+                <div class="col-4">
+                    <select class="form-select form-select-sm col-filtro" data-idx="${idx}">${colOptions}</select>
+                </div>
+                <div class="col-3">
+                    <select class="form-select form-select-sm op-filtro" data-idx="${idx}">
+                        <option value="eq">=</option>
+                        <option value="neq">≠</option>
+                        <option value="contains">contiene</option>
+                        <option value="startswith">empieza con</option>
+                        <option value="gt">></option>
+                        <option value="lt"><</option>
+                        <option value="between">entre</option>
+                    </select>
+                </div>
+                <div class="col-3">
+                    <input type="text" class="form-control form-control-sm val-filtro" placeholder="Valor">
+                </div>
+                <div class="col-2">
+                    <button class="btn btn-sm btn-danger w-100" onclick="$(this).closest('.filtro-row').remove()">X</button>
+                </div>
+            </div>
+        `;
+        $('#filtros-container').append(filtroHtml);
+    });
+
+    // Agregar agregación dinámica
+    let aggIndex = 0;
+    $('#agregar-agregacion').click(function() {
+        const idx = aggIndex++;
+        const colOptions = Object.keys(columnasDisponibles).map(c => `<option value="${c}">${c}</option>`).join('');
+        const aggHtml = `
+            <div class="agregacion-row row g-2" data-idx="${idx}">
+                <div class="col-5">
+                    <select class="form-select form-select-sm col-agg">${colOptions}</select>
+                </div>
+                <div class="col-4">
+                    <select class="form-select form-select-sm func-agg">
+                        <option value="SUM">SUM</option>
+                        <option value="AVG">AVG</option>
+                        <option value="COUNT">COUNT</option>
+                        <option value="MIN">MIN</option>
+                        <option value="MAX">MAX</option>
+                    </select>
+                </div>
+                <div class="col-3">
+                    <button class="btn btn-sm btn-danger w-100" onclick="$(this).closest('.agregacion-row').remove()">X</button>
+                </div>
+            </div>
+        `;
+        $('#agregaciones-container').append(aggHtml);
+    });
+
+    // Obtener configuración actual del reporte
+    function getReportConfig() {
+        let filtros = [];
+        $('#filtros-container .filtro-row').each(function() {
+            let col = $(this).find('.col-filtro').val();
+            let op = $(this).find('.op-filtro').val();
+            let val = $(this).find('.val-filtro').val();
+            if (col && val) {
+                if (op === 'between') {
+                    // Se espera formato "valor1,valor2"
+                    let parts = val.split(',');
+                    if (parts.length === 2) {
+                        filtros.push({col, op, val: [parts[0].trim(), parts[1].trim()]});
+                    }
+                } else {
+                    filtros.push({col, op, val});
+                }
+            }
+        });
+        
+        let agregaciones = [];
+        $('#agregaciones-container .agregacion-row').each(function() {
+            let col = $(this).find('.col-agg').val();
+            let func = $(this).find('.func-agg').val();
+            if (col && func) agregaciones.push({col, func});
+        });
+        
+        let orden = [];
+        $('#orden-select').val().forEach(col => {
+            orden.push({col, dir: 'ASC'});
+        });
+        
+        return {
+            tabla: $('#tabla-select').val(),
+            campos: $('#campos-select').val() || [],
+            filtros: filtros,
+            group_by: $('#groupby-select').val() || [],
+            agregaciones: agregaciones,
+            orden: orden,
+            limite: parseInt($('#limite').val()) || 100,
+            tipo_grafico: $('#tipo-grafico').val()
+        };
+    }
+
+    // Ejecutar reporte
+    $('#ejecutar-reporte').click(function() {
+        const config = getReportConfig();
+        if (!config.tabla) {
+            alert("Seleccione una tabla");
+            return;
+        }
+        $('#loader').show();
+        $('#tabla-resultados').hide();
+        $('#grafico-canvas').hide();
+        $('#sin-datos').hide();
+        
+        $.ajax({
+            url: "{% url 'reporte_ejecutar' %}",
+            method: "POST",
+            contentType: "application/json",
+            headers: {'X-CSRFToken': '{{ csrf_token }}'},
+            data: JSON.stringify(config),
+            success: function(res) {
+                $('#loader').hide();
+                if (res.error) {
+                    alert("Error: " + res.error);
+                    return;
+                }
+                currentData = res;
+                if (res.data.length === 0) {
+                    $('#sin-datos').show();
+                    if (dataTable) dataTable.clear().draw();
+                    if (currentChart) currentChart.destroy();
+                    return;
+                }
+                $('#sin-datos').hide();
+                renderTabla(res.columns, res.data);
+                if (config.tipo_grafico !== 'table') {
+                    renderGrafico(res.columns, res.data, config.tipo_grafico);
+                } else {
+                    if (currentChart) currentChart.destroy();
+                    $('#grafico-canvas').hide();
+                }
+                $('#tabla-resultados').show();
+            },
+            error: function(xhr) {
+                $('#loader').hide();
+                alert("Error en el servidor: " + xhr.responseText);
+            }
+        });
+    });
+
+    function renderTabla(columns, data) {
+        if (dataTable) dataTable.clear().destroy();
+        const thead = $('#tabla-resultados thead').empty();
+        const headerRow = $('<tr>');
+        columns.forEach(col => headerRow.append(`<th>${col}</th>`));
+        thead.append(headerRow);
+        dataTable = $('#tabla-resultados').DataTable({
+            data: data,
+            columns: columns.map(() => ({defaultContent: ''})),
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 20,
+            scrollX: true
+        });
+    }
+
+    function renderGrafico(columns, data, tipo) {
+        if (currentChart) currentChart.destroy();
+        const canvas = $('#grafico-canvas');
+        canvas.show();
+        const ctx = canvas[0].getContext('2d');
+        if (tipo === 'pie') {
+            const labels = data.map(row => row[0]);
+            const values = data.map(row => parseFloat(row[1]) || 0);
+            currentChart = new Chart(ctx, {
+                type: 'pie',
+                data: { labels, datasets: [{ data: values, backgroundColor: '#' + Math.floor(Math.random()*16777215).toString(16) }] }
+            });
+        } else {
+            const labels = data.map(row => row[0]);
+            const datasets = [];
+            for (let i = 1; i < columns.length; i++) {
+                datasets.push({
+                    label: columns[i],
+                    data: data.map(row => parseFloat(row[i]) || 0),
+                    borderColor: '#' + Math.floor(Math.random()*16777215).toString(16),
+                    fill: tipo === 'line' ? false : true
+                });
+            }
+            currentChart = new Chart(ctx, {
+                type: tipo,
+                data: { labels, datasets },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+        }
+    }
+
+    // Exportar a Excel
+    $('#exportar-xlsx').click(function() {
+        if (!currentData || !currentData.data || currentData.data.length === 0) {
+            alert("No hay datos para exportar");
+            return;
+        }
+        const wsData = currentData.data.map(row => {
+            let obj = {};
+            currentData.columns.forEach((col, i) => obj[col] = row[i]);
+            return obj;
+        });
+        const ws = XLSX.utils.json_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+        XLSX.writeFile(wb, `reporte_adhoc_${new Date().toISOString().slice(0,19)}.xlsx`);
+    });
+
+    // Inicializar
+    $(document).ready(function() {
+        cargarTablas();
+    });
+</script>
+{% endblock %}

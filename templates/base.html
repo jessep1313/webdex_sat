@@ -32,11 +32,14 @@
         .app-sidebar .nav-treeview .nav-link p {
             color: #ffffff !important;
         }
+
+        
     </style>
 
     {% block extra_head %}{% endblock %}
 </head>
-<body class="layout-fixed sidebar-expand-lg bg-body-tertiary">
+
+<body class="layout-fixed sidebar-expand-lg sidebar-mini bg-body-tertiary">
 <div class="app-wrapper">
 
     <!-- ==================== NAVBAR (HEADER) ==================== -->
@@ -311,6 +314,12 @@
                                 </a>
                             </li>
                         </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{% url 'usuario_reportes' %}" class="nav-link">
+                            <i class="nav-icon bi bi-bar-chart-steps"></i>
+                            <p>Reportes Ad-hoc</p>
+                        </a>
                     </li>
                     {% endif %}
 
