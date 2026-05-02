@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}Dashboard{% endblock %}
-{% block content_title %}Panel de Control{% endblock %}
+{% block content_title %}Bienvenido a tu Dashboard{% endblock %}
 
 {% block extra_head %}
 <!-- DataTables CSS -->
@@ -12,6 +12,7 @@
 {% endblock %}
 
 {% block content %}
+<!----
 <div class="row">
     <div class="col-md-12">
         <div class="card">
@@ -30,7 +31,7 @@
         </div>
     </div>
 </div>
-
+-->
 <!-- ==================== SUPERADMIN DASHBOARD ==================== -->
 {% if request.session.user_type == 'SA' %}
 <div class="row">

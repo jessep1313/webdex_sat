@@ -32,6 +32,15 @@
         .app-sidebar .nav-treeview .nav-link p {
             color: #ffffff !important;
         }
+        /* Forzar tipografía Work Sans en toda la interfaz */
+        body, h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6,
+        .btn, .form-control, .nav-link, .dropdown-item, .card-title,
+        .app-sidebar .nav-link p, .app-sidebar .nav-link i,
+        .app-header .navbar-nav .nav-link, .breadcrumb-item a,
+        .alert, .table, .small-box, .card-header, .card-footer,
+        .modal-content, .modal-title, label, input, select, textarea {
+            font-family: 'Work Sans', 'Segoe UI', 'Roboto', sans-serif !important;
+        }
 
         
     </style>
@@ -52,9 +61,11 @@
                         <i class="bi bi-list"></i>
                     </a>
                 </li>
+                <!--
                 <li class="nav-item d-none d-md-block">
-                    <a href="{% url 'dashboard' %}" class="nav-link">Inicio</a>
+                    <a href="{% url 'dashboard' %}" class="nav-link">Dashboard</a>
                 </li>
+                -->
             </ul>
 
             <!-- Menú de usuario (dropdown) -->
@@ -124,7 +135,7 @@
                     </li>
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
-                            <i class="nav-icon bi bi-people"></i>
+                            <i class="nav-icon bi bi-gear"></i>
                             <p>Configuración <i class="nav-arrow bi bi-chevron-right"></i></p>
                         </a>
                         <ul class="nav nav-treeview">
@@ -165,7 +176,7 @@
                     {% if request.session.user_type == 'A' %}
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
-                            <i class="nav-icon bi bi-people"></i>
+                            <i class="nav-icon bi bi-gear"></i>
                             <p>Configuración <i class="nav-arrow bi bi-chevron-right"></i></p>
                         </a>
                         <ul class="nav nav-treeview">

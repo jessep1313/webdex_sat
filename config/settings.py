@@ -86,3 +86,12 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.file'
 
 # Al final del archivo, agregar:
 LOGIN_URL = '/'
+
+# Duración de la sesión en segundos (30 minutos = 1800 segundos)
+SESSION_COOKIE_AGE = 1800
+
+# Renovar la cookie en cada petición (reinicia el contador de tiempo)
+SESSION_SAVE_EVERY_REQUEST = True
+
+# Opcional: evitar que la sesión expire al cerrar el navegador (false = la sesión dura SESSION_COOKIE_AGE aunque cierres el navegador)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False

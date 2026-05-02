@@ -7,43 +7,19 @@
     <title>Login | Plataforma Fiscal</title>
     <link rel="stylesheet" href="{% static 'adminlte/dist/css/adminlte.min.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        /* Overlay ocupa toda la pantalla y se muestra sobre todo */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            flex-direction: column;
-        }
-        .loading-spinner {
-            font-size: 3rem;
-            color: white;
-            margin-bottom: 1rem;
-        }
-        .loading-text {
-            color: white;
-            font-size: 1.2rem;
-        }
-    </style>
 </head>
 <body class="hold-transition login-page">
 
+    
 <div class="login-box">
-    <img src="{% static 'adminlte/dist/assets/img/logoazul.png' %}"
-         alt="Logo"
-         class="brand-image img-circle elevation-3"
-         style="opacity: .8; width: 90%; height: auto;">
+     <img src="{% static 'adminlte/dist/assets/img/logoazul.png' %}" 
+                    alt="Logo" 
+                    class="brand-image img-circle elevation-3" 
+                    style="opacity: .8; width: 90%; height: auto;">
     <div class="card">
-        <div class="card-body login-card-body" id="login-card">
+        <div class="card-body login-card-body">
             <p class="login-box-msg">Inicia sesión</p>
-            <form method="post" id="loginForm">
+            <form method="post">
                 {% csrf_token %}
                 <div class="input-group mb-3">
                     <input type="email" name="email" class="form-control" placeholder="Correo electrónico" required>
@@ -67,23 +43,5 @@
         </div>
     </div>
 </div>
-
-<!-- Overlay de carga (oculto por defecto) -->
-<div id="loadingOverlay" class="loading-overlay">
-    <div class="loading-spinner">
-        <i class="fas fa-spinner fa-spin fa-3x"></i>
-    </div>
-    <div class="loading-text">Autenticando, por favor espere...</div>
-</div>
-
-<script>
-    document.getElementById('loginForm').addEventListener('submit', function(e) {
-        // Mostrar overlay con spinner
-        document.getElementById('loadingOverlay').style.display = 'flex';
-        // Opcional: ocultar el formulario para dar sensación de que ya se está procesando
-        document.getElementById('login-card').style.opacity = '0.5';
-        // El formulario continúa su envío normal
-    });
-</script>
 </body>
 </html>
