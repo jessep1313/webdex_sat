@@ -34,7 +34,13 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+     # ... otros middlewares ...
+    'apps.core.middleware.DatabaseMiddleware',  # <-- Agregar esto después de SessionMiddleware
 ]
+
+
+DATABASE_ROUTERS = ['apps.core.db_router.EmpresaDatabaseRouter']
+
 
 ROOT_URLCONF = 'config.urls'
 
