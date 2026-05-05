@@ -42,17 +42,60 @@
             font-family: 'Work Sans', 'Segoe UI', 'Roboto', sans-serif !important;
         }
 
+        /* Ajustes generales para el logo en el sidebar */
+       #sidebar-logo {
+            transition: all 0.3s ease;
+            width: auto;
+            max-width: 150px;
+            height: auto;
+            margin: 0 auto;
+            display: block;
+        }
+
+        #sidebar-logo.logo-collapsed {
+            width: 40px;
+            max-width: 40px;
+            border-radius: 50%;
+        }
+
+        #sidebar-logo.logo-expanded {
+            width: 100%;
+            max-width: 150px;
+            border-radius: 0;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 3.5rem;
+            padding: 0.8125rem 0.5rem;
+            overflow: hidden;
+            font-size: 1.25rem;
+            white-space: nowrap;
+            border-bottom: 1px solid #fdfeff;
+            transition: width 0.3s ease-in-out;
+        }
+
+        .card {
+            margin-top: 20px;
+        }
+
         
     </style>
 
     {% block extra_head %}{% endblock %}
 </head>
 
+<!--
 <body class="layout-fixed sidebar-expand-lg sidebar-mini bg-body-tertiary">
+-->
+<body class="layout-fixed sidebar-expand-lg sidebar-mini sidebar-collapse bg-body-tertiary">
 <div class="app-wrapper">
 
     <!-- ==================== NAVBAR (HEADER) ==================== -->
     <nav class="app-header navbar navbar-expand bg-body">
+    
         <div class="container-fluid">
             <!-- Botón para colapsar sidebar -->
             <ul class="navbar-nav">
@@ -61,25 +104,39 @@
                         <i class="bi bi-list"></i>
                     </a>
                 </li>
-                <!--
-                <li class="nav-item d-none d-md-block">
-                    <a href="{% url 'dashboard' %}" class="nav-link">Dashboard</a>
-                </li>
-                -->
+              
+              
             </ul>
 
             <!-- Menú de usuario (dropdown) -->
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item dropdown user-menu">
                     <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
-                        <span class="d-none d-md-inline">{{ request.session.user_nombre|default:"Usuario" }}</span>
+                        <span class="d-none d-md-inline"><B>{{ request.session.user_nombre|default:"Usuario" }}</B></span>
+                         <p style="font-size: 12px;"><B>Rol: 
+                                {% if request.session.user_type == 'SA' %}
+                                    Superadministrador
+                                {% elif request.session.user_type == 'A' %}
+                                    Administrador
+                                {% else %}
+                                    Usuario
+                                {% endif %}</B>
+                        </p>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-end">
                         <li class="user-header text-bg-primary">
                             <p>{{ request.session.user_nombre|default:"Usuario" }}</p>
+                            
                         </li>
+                        <!---
                         <li class="user-footer">
                             <a href="{% url 'logout' %}" class="btn btn-outline-danger float-end">Cerrar sesión</a>
+                        </li>
+                        -->
+                        <li class="user-footer">
+                            <button type="button" class="btn btn-outline-danger float-end" data-bs-toggle="modal" data-bs-target="#confirmLogoutModal">
+                                Cerrar sesión
+                            </button>
                         </li>
                     </ul>
                 </li>
@@ -89,13 +146,16 @@
 
     <!-- ==================== SIDEBAR (MENÚ LATERAL) ==================== -->
     <aside class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
-        <div class="sidebar-brand">
-                <img src="{% static 'adminlte/dist/assets/img/logo.png' %}" 
-                    alt="Logo" 
-                    class="brand-image img-circle elevation-3" 
-                    style="opacity: .8; width: 90%; height: auto;">
 
-        
+
+        <div class="sidebar-brand">
+            <a href="{% url 'dashboard' %}" style="display: block; text-decoration: none; outline: none;">
+                <img id="sidebar-logo"
+                    src="{% static 'adminlte/dist/assets/img/logo.png' %}"
+                    alt="Logo"
+                    class="brand-image img-circle elevation-3"
+                    style="opacity: .8; transition: all 0.3s ease;">
+            </a>
         </div>
         <div class="sidebar-wrapper">
             <nav class="mt-2">
@@ -104,7 +164,7 @@
                     <li class="nav-item">
                         <a href="{% url 'dashboard' %}" class="nav-link">
                             <i class="nav-icon bi bi-speedometer2"></i>
-                            <p>Inicio</p>
+                            <p>Dashboard</p>
                         </a>
                     </li>
 
@@ -380,6 +440,25 @@
     </footer>
 </div>
 
+<!-- Modal de confirmación de cierre de sesión -->
+<div class="modal fade" id="confirmLogoutModal" tabindex="-1" aria-labelledby="confirmLogoutModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmLogoutModalLabel">Confirmar cierre de sesión</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                ¿Estás seguro de que deseas cerrar sesión?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <a href="{% url 'logout' %}" class="btn btn-danger">Sí, cerrar sesión</a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ==================== SCRIPTS ==================== -->
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
@@ -400,6 +479,81 @@
             });
         }
     });
+
+    
+</script>
+<script>
+    (function() {
+        const logo = document.getElementById('sidebar-logo');
+        if (!logo) return;
+
+        // Rutas de los logos (ajusta según tu estructura)
+        const logoGrande = logo.getAttribute('src').replace(/[^/]+$/, 'logo.png');
+        const logoChico = logo.getAttribute('src').replace(/[^/]+$/, 'iconologo.png');
+
+        // Función para cambiar el logo según el estado
+        function setLogo(esGrande) {
+            logo.src = esGrande ? logoGrande : logoChico;
+            // Ajustar clase para cambiar el tamaño vía CSS (opcional, pero útil)
+            if (esGrande) {
+                logo.classList.add('logo-expanded');
+                logo.classList.remove('logo-collapsed');
+            } else {
+                logo.classList.add('logo-collapsed');
+                logo.classList.remove('logo-expanded');
+            }
+        }
+
+        // Estado actual: ¿está expandido permanentemente? (sin clase sidebar-collapse)
+        function isPermanentlyExpanded() {
+            return !document.body.classList.contains('sidebar-collapse');
+        }
+
+        // Estado hover: false por defecto
+        let hoverActive = false;
+
+        // Detectar cambios permanentes (por clic en el botón)
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.attributeName === 'class') {
+                    if (isPermanentlyExpanded()) {
+                        setLogo(true);
+                        hoverActive = false; // al expandir permanentemente, desactivamos hover
+                    } else {
+                        // Si no está permanentemente expandido, usar el estado hover
+                        if (!hoverActive) {
+                            setLogo(false);
+                        }
+                    }
+                }
+            });
+        });
+        observer.observe(document.body, { attributes: true });
+
+        // Manejar hover sobre el sidebar (solo cuando NO está permanentemente expandido)
+        const sidebar = document.querySelector('.app-sidebar');
+        if (sidebar) {
+            sidebar.addEventListener('mouseenter', function() {
+                if (!isPermanentlyExpanded()) {
+                    hoverActive = true;
+                    setLogo(true);
+                }
+            });
+            sidebar.addEventListener('mouseleave', function() {
+                if (!isPermanentlyExpanded()) {
+                    hoverActive = false;
+                    setLogo(false);
+                }
+            });
+        }
+
+        // Inicializar al cargar
+        if (isPermanentlyExpanded()) {
+            setLogo(true);
+        } else {
+            setLogo(false);
+        }
+    })();
 </script>
 
 {% block extra_scripts %}{% endblock %}
