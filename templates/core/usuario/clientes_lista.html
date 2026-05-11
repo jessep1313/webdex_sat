@@ -7,29 +7,166 @@
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
 <style>
-    .modal-xl { max-width: 90%; }
+    /* Estilos modernos para tabla y contenedores */
+    .custom-table-container {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        margin-top: 20px;
+    }
+
+    .table-toolbar {
+        padding: 15px 20px;
+        background: #fff;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn-header-primary {
+        background-color: white;
+        color: #005EC4 !important;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-header-primary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .btn-header-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-header-tertiary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+        color: #005EC4;
+    }
+
+    .btn-action-primary {
+        background-color: #005EC4;
+        color: white !important;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .btn-action-primary:hover {
+        opacity: 0.8;
+        transform: translateY(-1px);
+    }
+
+    .btn-action-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .btn-action-tertiary:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    /* DataTables sobreescritura */
+    .dataTables_wrapper .dataTables_filter {
+        display: none;  /* Ocultamos el buscador nativo */
+    }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        margin-top: 1rem;
+    }
+
+    .page-link {
+        color: #8D8D8D;
+        border: none;
+        border-radius: 6px;
+        margin: 0 2px;
+        font-weight: 500;
+    }
+
+    .page-link:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .page-item.active .page-link {
+        background-color: #005EC4;
+        color: white;
+    }
+
+    table.dataTable thead th {
+        background-color: #005EC4;
+        color: white;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+    }
+
+    table.dataTable tbody td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    .modal-xl {
+        max-width: 90%;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="card-title">Clientes registrados</h3>
-        <div>
-            <button type="button" id="btnNuevo" class="btn btn-primary btn-sm me-2">
-                <i class="bi bi-plus-circle"></i> Nuevo cliente
+<div class="custom-table-container">
+    <div class="table-toolbar d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-medium text-muted">Clientes registrados</h6>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="input-group" style="max-width: 300px;">
+                <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
+            </div>
+            <button class="btn-header-tertiary" id="btnNuevo" data-bs-toggle="tooltip" title="Nuevo cliente">
+                <i class="bi bi-plus-lg"></i>
             </button>
-            <button type="button" id="btnExportar" class="btn btn-success btn-sm me-2">
-                <i class="bi bi-download"></i> Exportar
+            <button class="btn-header-tertiary" id="btnExportarPlantilla" data-bs-toggle="tooltip" title="Exportar plantilla CSV">
+                <i class="bi bi-download"></i>
             </button>
-            <button type="button" id="btnImportar" class="btn btn-info btn-sm">
-                <i class="bi bi-upload"></i> Importar CSV
+            <button class="btn-header-tertiary" id="btnImportar" data-bs-toggle="tooltip" title="Importar CSV">
+                <i class="bi bi-upload"></i>
+            </button>
+            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
+                <i class="bi bi-file-earmark-excel"></i>
             </button>
             <input type="file" id="fileImport" style="display: none;" accept=".csv">
         </div>
     </div>
-    <div class="card-body">
-        <table id="tablaClientes" class="table table-bordered table-striped">
+    <div class="table-responsive">
+        <table id="tablaClientes" class="table mb-0">
             <thead>
                 <tr>
                     <th>RFC</th>
@@ -38,7 +175,7 @@
                     <th>Correo2</th>
                     <th>Correo3</th>
                     <th>Tipo Cliente</th>
-                    <th>Acciones</th>
+                    <th class="text-end">Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -46,7 +183,7 @@
     </div>
 </div>
 
-<!-- Modal para editar/crear cliente -->
+<!-- Modal para editar/crear cliente (sin cambios funcionales) -->
 <div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -165,6 +302,7 @@
 {% block extra_scripts %}
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
     let dataTable;
 
@@ -178,20 +316,32 @@
                 dataTable = $('#tablaClientes').DataTable({
                     data: data,
                     columns: [
-                        { data: 'RFC' }, { data: 'RazonSocial' }, { data: 'Correo' },
-                        { data: 'Correo2' }, { data: 'Correo3' }, { data: 'tipoProveedor' },
+                        { data: 'RFC' },
+                        { data: 'RazonSocial' },
+                        { data: 'Correo' },
+                        { data: 'Correo2' },
+                        { data: 'Correo3' },
+                        { data: 'tipoProveedor' },
                         {
                             data: null,
                             render: function(row) {
-                                return '<button class="btn btn-sm btn-warning editar" data-id="' + row.id + '">' +
-                                       '<i class="bi bi-pencil"></i> Editar</button>';
+                                return '<div class="d-flex justify-content-end gap-1">' +
+                                       '<button class="btn-action-primary editar" data-id="' + row.id + '" data-bs-toggle="tooltip" title="Editar cliente">' +
+                                       '<i class="bi bi-pencil"></i></button>' +
+                                       '</div>';
                             }
                         }
                     ],
                     language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
                     pageLength: 20,
                     order: [[1, 'asc']],
-                    columnDefs: [{ orderable: false, targets: 6 }]
+                    columnDefs: [{ orderable: false, targets: 6 }],
+                    dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+                    searching: true   // Habilitamos búsqueda
+                });
+                // Conectar buscador personalizado
+                $('#searchInput').off('keyup').on('keyup', function() {
+                    dataTable.search(this.value).draw();
                 });
             },
             error: function() { alert('Error al cargar clientes'); }
@@ -295,10 +445,12 @@
 
         $('#btnGuardar').click(guardarCliente);
 
-        $('#btnExportar').click(function() {
+        // Exportar plantilla CSV
+        $('#btnExportarPlantilla').click(function() {
             window.location.href = "{% url 'clientes_exportar' %}";
         });
 
+        // Importar CSV
         $('#btnImportar').click(function() {
             $('#fileImport').click();
         });
@@ -323,6 +475,29 @@
                 },
                 error: function() { alert('Error en la importación'); }
             });
+        });
+
+        // Exportar a Excel (datos visibles actualmente)
+        $('#btnExportarExcel').click(function() {
+            const data = dataTable.rows({ search: 'applied' }).data().toArray();
+            const wsData = data.map(row => ({
+                'RFC': row.RFC,
+                'Razón Social': row.RazonSocial,
+                'Correo': row.Correo,
+                'Correo2': row.Correo2,
+                'Correo3': row.Correo3,
+                'Tipo Cliente': row.tipoProveedor
+            }));
+            const ws = XLSX.utils.json_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+            XLSX.writeFile(wb, `clientes_${new Date().toISOString().slice(0,19)}.xlsx`);
+        });
+
+        // Tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function(el) {
+            new bootstrap.Tooltip(el);
         });
     });
 </script>

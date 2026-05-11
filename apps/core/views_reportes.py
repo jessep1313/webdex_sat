@@ -226,9 +226,10 @@ from .decorators import usuario_required
 import json
 from datetime import date
 
-@usuario_required
+
 def reportes_data(request):
     """Devuelve datos para los reportes predefinidos (CFDI mensual, top proveedores, etc.)"""
+    print('Entró a reportes_data')
     if request.method == 'POST':
         data = json.loads(request.body)
         reporte = data.get('reporte')
@@ -243,9 +244,14 @@ def reportes_data(request):
 
     db_name = request.session.get('empresa_db_name')
     rfc_empresa = request.session.get('empresa_rfc')
+    print(db_name)
+    print(rfc_empresa)
+    print('Entro')
+
     if not db_name or not rfc_empresa:
         return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
 
+    print('Reporte solicitado:', reporte)
     if reporte == 'cfdi_mensual':
         return _reporte_cfdi_mensual(db_name, rfc_empresa, filtros)
     elif reporte == 'top_proveedores':
@@ -262,6 +268,9 @@ def reportes_data(request):
 def _reporte_cfdi_mensual(db_name, rfc_empresa, filtros):
     fecha_inicio = filtros.get('fecha_inicio')
     fecha_fin = filtros.get('fecha_fin')
+    print('Reporte cfdi mensual ----------------')
+    print(fecha_inicio)
+    print(fecha_fin)
     params = [rfc_empresa]
     where = ""
     if fecha_inicio:
@@ -271,6 +280,7 @@ def _reporte_cfdi_mensual(db_name, rfc_empresa, filtros):
         where += " AND fecha_comprobante <= %s"
         params.append(fecha_fin)
 
+  
     with connections[db_name].cursor() as cursor:
         cursor.execute(f"""
             SELECT DATE_FORMAT(fecha_comprobante, '%%Y-%%m') as mes,
@@ -301,6 +311,8 @@ def _reporte_cfdi_mensual(db_name, rfc_empresa, filtros):
             'emitidos_cantidad': emitidos.get(mes, {}).get('cantidad', 0),
             'emitidos_monto': emitidos.get(mes, {}).get('monto', 0),
         })
+
+    print(data)
     return JsonResponse({'data': data})
 
 def _reporte_top_proveedores(db_name, rfc_empresa, filtros):
@@ -329,6 +341,8 @@ def _reporte_top_proveedores(db_name, rfc_empresa, filtros):
         """, params)
         rows = cursor.fetchall()
 
+
+
     data = []
     for r in rows:
         rfc = r[0]
@@ -352,7 +366,7 @@ def _reporte_top_proveedores(db_name, rfc_empresa, filtros):
         })
     return JsonResponse({'data': data})
 
-def _reporte_opiniones_status(db_name, rfc_empresa, filtros):
+def _reporte_opiniones_status_2(db_name, rfc_empresa, filtros):
     with connections[db_name].cursor() as cursor:
         cursor.execute("SELECT Estatus, COUNT(*) FROM proveedores WHERE rfc_identy = %s GROUP BY Estatus", [rfc_empresa])
         prov = dict(cursor.fetchall())
@@ -374,6 +388,60 @@ def _reporte_opiniones_status(db_name, rfc_empresa, filtros):
             'total': prov.get(cat,0)+prov_sin.get(cat,0)+cli.get(cat,0)+cli_sin.get(cat,0)
         })
     return JsonResponse({'data': data})
+
+def _reporte_opiniones_status(db_name, rfc_empresa, filtros):
+    fecha_inicio = filtros.get('fecha_inicio')
+    fecha_fin = filtros.get('fecha_fin')
+    params = [rfc_empresa]
+    where = ""
+    if fecha_inicio:
+        where += " AND fecha_opinion >= %s"
+        params.append(fecha_inicio)
+    if fecha_fin:
+        where += " AND fecha_opinion <= %s"
+        params.append(fecha_fin)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute(f"""
+            SELECT Estatus, COUNT(*) FROM proveedores
+            WHERE rfc_identy = %s {where}
+            GROUP BY Estatus
+        """, params)
+        prov = dict(cursor.fetchall())
+        cursor.execute(f"""
+            SELECT Estatus, COUNT(*) FROM proveedores_sin_cfdi
+            WHERE rfc_identy = %s {where}
+            GROUP BY Estatus
+        """, params)
+        prov_sin = dict(cursor.fetchall())
+        cursor.execute(f"""
+            SELECT Estatus, COUNT(*) FROM clientes
+            WHERE rfc_identy = %s {where}
+            GROUP BY Estatus
+        """, params)
+        cli = dict(cursor.fetchall())
+        cursor.execute(f"""
+            SELECT Estatus, COUNT(*) FROM clientes_sin_cfdi
+            WHERE rfc_identy = %s {where}
+            GROUP BY Estatus
+        """, params)
+        cli_sin = dict(cursor.fetchall())
+
+    categorias = ['Positivo', 'Negativo', 'SinRespuesta']
+    data = []
+    for cat in categorias:
+        data.append({
+            'estatus': cat,
+            'proveedores': prov.get(cat, 0),
+            'proveedores_sin_cfdi': prov_sin.get(cat, 0),
+            'clientes': cli.get(cat, 0),
+            'clientes_sin_cfdi': cli_sin.get(cat, 0),
+            'total': prov.get(cat,0)+prov_sin.get(cat,0)+cli.get(cat,0)+cli_sin.get(cat,0)
+        })
+    return JsonResponse({'data': data})
+
+
+
 
 def _reporte_proveedores_listas_negras(db_name, rfc_empresa, filtros):
     with connections[db_name].cursor() as cursor:

@@ -6,6 +6,99 @@
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
 <style>
+    /* Estilos modernos para tabla y contenedores */
+    .custom-table-container {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        margin-top: 20px;
+    }
+
+    .table-toolbar {
+        padding: 15px 20px;
+        background: #fff;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn-header-primary {
+        background-color: white;
+        color: #005EC4 !important;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-header-primary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .btn-header-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-header-tertiary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+        color: #005EC4;
+    }
+
+    /* DataTables sobreescritura */
+    .dataTables_wrapper .dataTables_filter {
+        display: none;  /* Ocultamos el buscador nativo */
+    }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        margin-top: 1rem;
+    }
+
+    .page-link {
+        color: #8D8D8D;
+        border: none;
+        border-radius: 6px;
+        margin: 0 2px;
+        font-weight: 500;
+    }
+
+    .page-link:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .page-item.active .page-link {
+        background-color: #005EC4;
+        color: white;
+    }
+
+    table.dataTable thead th {
+        background-color: #005EC4;
+        color: white;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+    }
+
+    table.dataTable tbody td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    /* Estilos específicos para los badges y botones (compatibles con nuevo diseño) */
     .badge-success {
         background-color: #28a745 !important;
         color: white;
@@ -15,6 +108,7 @@
         display: inline-block;
         width: 24px;
         text-align: center;
+        cursor: pointer;
     }
     .badge-danger {
         background-color: #dc3545 !important;
@@ -26,43 +120,63 @@
         width: 28px;
         text-align: center;
     }
-    .download-latest {
-        cursor: pointer;
-    }
     .btn-history {
         margin-left: 4px;
+        background-color: transparent;
+        border: none;
+        color: #8D8D8D;
+        transition: all 0.2s;
+    }
+    .btn-history:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+        border-radius: 6px;
     }
     .upload-btn {
+        background-color: transparent;
+        border: none;
+        color: #005EC4;
+        transition: all 0.2s;
         padding: 5px 12px;
-        font-size: 12px;
+        border-radius: 6px;
+    }
+    .upload-btn:hover {
+        background-color: rgba(0, 94, 196, 0.08);
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Documentación REPSE por Proveedor/Cliente</h3>
-        <div class="card-tools">
-            <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#modalAyuda">
-                <i class="bi bi-question-circle"></i> Significado de columnas
+<div class="custom-table-container">
+    <div class="table-toolbar d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-medium text-muted">Documentación REPSE por Proveedor/Cliente</h6>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="input-group" style="max-width: 300px;">
+                <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar por RFC o razón social...">
+            </div>
+            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
+                <i class="bi bi-file-earmark-excel"></i>
+            </button>
+            <button class="btn-header-tertiary" id="btnAyuda" data-bs-toggle="modal" data-bs-target="#modalAyuda" title="Significado de columnas">
+                <i class="bi bi-question-circle"></i>
             </button>
         </div>
     </div>
-    <div class="card-body">
-        <table id="tablaRepse" class="table table-bordered table-striped" style="width:100%">
+    <div class="table-responsive">
+        <table id="tablaRepse" class="table mb-0">
             <thead>
                 <tr>
                     <th>RFC</th>
                     <th>Razón Social</th>
-                    <th>A.R.</th>
-                    <th>C.P.I.</th>
-                    <th>C.L.</th>
-                    <th>C.D.C.M.</th>
-                    <th>C.D.C.B.</th>
-                    <th>C.N.</th>
-                    <th>D.P.S.</th>
-                    <th>Acciones</th>
+                    <th class="text-center">A.R.</th>
+                    <th class="text-center">C.P.I.</th>
+                    <th class="text-center">C.L.</th>
+                    <th class="text-center">C.D.C.M.</th>
+                    <th class="text-center">C.D.C.B.</th>
+                    <th class="text-center">C.N.</th>
+                    <th class="text-center">D.P.S.</th>
+                    <th class="text-end">Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -70,7 +184,7 @@
     </div>
 </div>
 
-<!-- Modal de ayuda -->
+<!-- Modal de ayuda (sin cambios) -->
 <div class="modal fade" id="modalAyuda" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -93,7 +207,7 @@
     </div>
 </div>
 
-<!-- Modal para subir ZIP -->
+<!-- Modal para subir ZIP (sin cambios funcionales) -->
 <div class="modal fade" id="modalSubirZIP" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -132,7 +246,7 @@
     </div>
 </div>
 
-<!-- Modal Historial -->
+<!-- Modal Historial (sin cambios funcionales) -->
 <div class="modal fade" id="modalHistorial" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -158,6 +272,7 @@
 {% block extra_scripts %}
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
     let dataTable;
 
@@ -178,7 +293,7 @@
                             render: function(val, type, row) {
                                 if (val == 1) {
                                     return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="AR" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="AR" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="AR" title="Historial"><i class="bi bi-clock-history"></i></button>`;
                                 } else {
                                     return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
                                 }
@@ -189,7 +304,7 @@
                             render: function(val, type, row) {
                                 if (val == 1) {
                                     return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CPI" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CPI" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CPI" title="Historial"><i class="bi bi-clock-history"></i></button>`;
                                 } else {
                                     return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
                                 }
@@ -200,7 +315,7 @@
                             render: function(val, type, row) {
                                 if (val == 1) {
                                     return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CL" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CL" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CL" title="Historial"><i class="bi bi-clock-history"></i></button>`;
                                 } else {
                                     return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
                                 }
@@ -211,7 +326,7 @@
                             render: function(val, type, row) {
                                 if (val == 1) {
                                     return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CDCM" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CDCM" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CDCM" title="Historial"><i class="bi bi-clock-history"></i></button>`;
                                 } else {
                                     return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
                                 }
@@ -222,7 +337,7 @@
                             render: function(val, type, row) {
                                 if (val == 1) {
                                     return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CDCB" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CDCB" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CDCB" title="Historial"><i class="bi bi-clock-history"></i></button>`;
                                 } else {
                                     return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
                                 }
@@ -233,7 +348,7 @@
                             render: function(val, type, row) {
                                 if (val == 1) {
                                     return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CN" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="CN" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CN" title="Historial"><i class="bi bi-clock-history"></i></button>`;
                                 } else {
                                     return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
                                 }
@@ -244,7 +359,7 @@
                             render: function(val, type, row) {
                                 if (val == 1) {
                                     return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="DPS" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn btn-sm btn-outline-secondary btn-history ms-1" data-rfc="${row.rfc}" data-tipo="DPS" title="Historial"><i class="bi bi-clock-history"></i></button>`;
+                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="DPS" title="Historial"><i class="bi bi-clock-history"></i></button>`;
                                 } else {
                                     return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
                                 }
@@ -253,18 +368,89 @@
                         {
                             data: null,
                             render: function(row) {
-                                return `<button class="btn btn-sm btn-primary upload-btn" data-rfc="${row.rfc}"><i class="bi bi-upload"></i> Cargar</button>`;
+                                return `<div class="text-end">
+                                            <button class="upload-btn" data-rfc="${row.rfc}" title="Subir documento">
+                                                <i class="bi bi-upload"></i> Cargar
+                                            </button>
+                                        </div>`;
                             }
                         }
                     ],
                     language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
                     pageLength: 20,
                     order: [[0, 'asc']],
-                    columnDefs: [{ orderable: false, targets: [2,3,4,5,6,7,8,9] }]
+                    columnDefs: [{ orderable: false, targets: [2,3,4,5,6,7,8,9] }],
+                    dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+                    searching: true
+                });
+                // Conectar buscador personalizado
+                $('#searchInput').off('keyup').on('keyup', function() {
+                    dataTable.search(this.value).draw();
                 });
             },
             error: function() { alert('Error al cargar datos'); }
         });
+    }
+
+    // Función auxiliar para escapar HTML
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    function mostrarHistorial(rfc, tipo) {
+        $('#historialRFC').text(rfc);
+        $('#historialTipo').text(tipo);
+        const tbody = $('#historialTabla tbody');
+        tbody.empty();
+        $('#modalHistorial').modal('show');
+        $.ajax({
+            url: `/repse/historial/${rfc}/${tipo}/`,
+            method: "GET",
+            success: function(data) {
+                if (data.length === 0) {
+                    tbody.append('<tr><td colspan="3" class="text-center">No hay registros históricos</td></tr>');
+                } else {
+                    data.forEach(item => {
+                        tbody.append(`
+                            <tr>
+                                <td>${escapeHtml(item.usuario)}</td>
+                                <td>${escapeHtml(item.fecha_carga)}</td>
+                                <td><a href="/repse/descargar-historial/${item.id}/" class="btn btn-sm btn-primary">Descargar</a></td>
+                            </tr>
+                        `);
+                    });
+                }
+            },
+            error: function() {
+                tbody.append('<tr><td colspan="3" class="text-center text-danger">Error al cargar historial</td></tr>');
+            }
+        });
+    }
+
+    // Exportar a Excel
+    function exportarExcel() {
+        const data = dataTable.rows({ search: 'applied' }).data().toArray();
+        const wsData = data.map(row => ({
+            'RFC': row.rfc,
+            'Razón Social': row.razon_social,
+            'A.R.': row.AR === 1 ? 'Sí' : 'No',
+            'C.P.I.': row.CPI === 1 ? 'Sí' : 'No',
+            'C.L.': row.CL === 1 ? 'Sí' : 'No',
+            'C.D.C.M.': row.CDCM === 1 ? 'Sí' : 'No',
+            'C.D.C.B.': row.CDCB === 1 ? 'Sí' : 'No',
+            'C.N.': row.CN === 1 ? 'Sí' : 'No',
+            'D.P.S.': row.DPS === 1 ? 'Sí' : 'No'
+        }));
+        const ws = XLSX.utils.json_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'REPSE');
+        XLSX.writeFile(wb, `repse_${new Date().toISOString().slice(0,19)}.xlsx`);
     }
 
     $(document).ready(function() {
@@ -278,7 +464,7 @@
             window.location.href = `/repse/descargar/${rfc}/${tipo}/`;
         });
 
-        // Mostrar historial para un tipo específico
+        // Mostrar historial
         $('#tablaRepse').on('click', '.btn-history', function(e) {
             e.preventDefault();
             const rfc = $(this).data('rfc');
@@ -286,47 +472,7 @@
             mostrarHistorial(rfc, tipo);
         });
 
-        function mostrarHistorial(rfc, tipo) {
-            $('#historialRFC').text(rfc);
-            $('#historialTipo').text(tipo);
-            const tbody = $('#historialTabla tbody');
-            tbody.empty();
-            $('#modalHistorial').modal('show');
-            $.ajax({
-                url: `/repse/historial/${rfc}/${tipo}/`,
-                method: "GET",
-                success: function(data) {
-                    if (data.length === 0) {
-                        tbody.append('<tr><td colspan="3" class="text-center">No hay registros históricos</td></tr>');
-                    } else {
-                        data.forEach(item => {
-                            tbody.append(`
-                                <tr>
-                                    <td>${escapeHtml(item.usuario)}</td>
-                                    <td>${escapeHtml(item.fecha_carga)}</td>
-                                    <td><a href="/repse/descargar-historial/${item.id}/" class="btn btn-sm btn-primary">Descargar</a></td>
-                                </tr>
-                            `);
-                        });
-                    }
-                },
-                error: function() {
-                    tbody.append('<tr><td colspan="3" class="text-center text-danger">Error al cargar historial</td></tr>');
-                }
-            });
-        }
-
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-
-        // Subir ZIP (código original, se preserva)
+        // Subir ZIP
         $('#tablaRepse').on('click', '.upload-btn', function() {
             const rfc = $(this).data('rfc');
             $('#upload_rfc').val(rfc);
@@ -375,6 +521,15 @@
             $('#zipFile').val('');
             $('#tipo_documento').val('');
             $('#uploadResult').hide().html('');
+        });
+
+        // Exportar a Excel
+        $('#btnExportarExcel').click(exportarExcel);
+
+        // Tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function(el) {
+            new bootstrap.Tooltip(el);
         });
     });
 </script>

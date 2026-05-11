@@ -81,21 +81,71 @@
             margin-top: 20px;
         }
 
-        
+        /* ========== NUEVOS ESTILOS PARA EL MENÚ DE USUARIO ========== */
+        .user-dropdown-toggle {
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            background: transparent;
+            border: none;
+        }
+
+        .user-dropdown-toggle:hover {
+            background-color: rgba(0, 94, 196, 0.05);
+        }
+
+        .user-name {
+            color: #005EC4;
+            font-size: 1rem;
+            line-height: 1.2;
+            font-weight: 600;
+        }
+
+        .user-role {
+            color: #8D8D8D;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .dropdown-menu-custom {
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            border-radius: 8px;
+            padding: 10px;
+            min-width: 200px;
+        }
+
+        .dropdown-menu-custom .dropdown-item {
+            border-radius: 6px;
+            font-weight: 500;
+            color: #555;
+            transition: all 0.2s;
+            padding: 8px 16px;
+        }
+
+        .dropdown-menu-custom .dropdown-item:hover {
+            background-color: rgba(0, 94, 196, 0.08);
+            color: #005EC4;
+        }
+
+        .dropdown-menu-custom .dropdown-item.text-danger:hover {
+            background-color: rgba(217, 48, 37, 0.08);
+            color: #d93025;
+        }
     </style>
 
     {% block extra_head %}{% endblock %}
 </head>
 
-<!--
-<body class="layout-fixed sidebar-expand-lg sidebar-mini bg-body-tertiary">
--->
 <body class="layout-fixed sidebar-expand-lg sidebar-mini sidebar-collapse bg-body-tertiary">
 <div class="app-wrapper">
 
     <!-- ==================== NAVBAR (HEADER) ==================== -->
     <nav class="app-header navbar navbar-expand bg-body">
-    
         <div class="container-fluid">
             <!-- Botón para colapsar sidebar -->
             <ul class="navbar-nav">
@@ -104,41 +154,36 @@
                         <i class="bi bi-list"></i>
                     </a>
                 </li>
-              
-              
             </ul>
 
-            <!-- Menú de usuario (dropdown) -->
+            <!-- Menú de usuario con nuevo estilo (alineado a la derecha) -->
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item dropdown user-menu">
-                    <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
-                        <span class="d-none d-md-inline"><B>{{ request.session.user_nombre|default:"Usuario" }}</B></span>
-                         <p style="font-size: 12px;"><B>Rol: 
-                                {% if request.session.user_type == 'SA' %}
-                                    Superadministrador
-                                {% elif request.session.user_type == 'A' %}
-                                    Administrador
-                                {% else %}
-                                    Usuario
-                                {% endif %}</B>
-                        </p>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-end">
-                        <li class="user-header text-bg-primary">
-                            <p>{{ request.session.user_nombre|default:"Usuario" }}</p>
-                            
-                        </li>
-                        <!---
-                        <li class="user-footer">
-                            <a href="{% url 'logout' %}" class="btn btn-outline-danger float-end">Cerrar sesión</a>
-                        </li>
-                        -->
-                        <li class="user-footer">
-                            <button type="button" class="btn btn-outline-danger float-end" data-bs-toggle="modal" data-bs-target="#confirmLogoutModal">
-                                Cerrar sesión
-                            </button>
-                        </li>
-                    </ul>
+                <li class="nav-item">
+                    <div class="dropdown">
+                        <div class="user-dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="d-flex flex-column text-end me-2">
+                                <span class="user-name fw-medium">{{ request.session.user_nombre|default:"Usuario" }}</span>
+                                <span class="user-role">
+                                    {% if request.session.user_type == 'SA' %}
+                                        Superadministrador
+                                    {% elif request.session.user_type == 'A' %}
+                                        Administrador
+                                    {% else %}
+                                        Usuario
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <i class="bi bi-chevron-down text-muted ms-1" style="font-size: 0.8rem;"></i>
+                        </div>
+                        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-custom">
+                           
+                            <li>
+                                <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#confirmLogoutModal">
+                                    <i class="bi bi-box-arrow-right me-2"></i>Cerrar sesión
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
             </ul>
         </div>
@@ -146,8 +191,6 @@
 
     <!-- ==================== SIDEBAR (MENÚ LATERAL) ==================== -->
     <aside class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
-
-
         <div class="sidebar-brand">
             <a href="{% url 'dashboard' %}" style="display: block; text-decoration: none; outline: none;">
                 <img id="sidebar-logo"
@@ -228,7 +271,6 @@
                                 </a>
                             </li>
                         </ul>
-                        
                     </li>
                     {% endif %}
 
@@ -274,7 +316,6 @@
 
                     <!-- Menú para Usuario Normal (US) -->
                     {% if request.session.user_type == 'US' %}
-        
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon bi bi-file-earmark-text"></i>
@@ -311,12 +352,11 @@
                             </li>
                             <li class="nav-item">
                                 <a href="{% url 'usuario_proveedores_sin_cfdi' %}" class="nav-link">
-                                    <i class="nav-icon bi bi-circle"></i><p>Listado sin CFDI</p>
+                                    <i class="nav-icon bi bi-circle"></i><p>Listado Prospectos</p>
                                 </a>
                             </li>
                         </ul>
                     </li>
-
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon bi bi-people"></i>
@@ -330,7 +370,7 @@
                             </li>
                             <li class="nav-item">
                                 <a href="{% url 'usuario_clientes_sin_cfdi' %}" class="nav-link">
-                                    <i class="nav-icon bi bi-circle"></i><p>Listado sin CFDI</p>
+                                    <i class="nav-icon bi bi-circle"></i><p>Listado Prospectos</p>
                                 </a>
                             </li>
                         </ul>
@@ -393,9 +433,6 @@
                         </a>
                     </li>
                     {% endif %}
-
-
-
                 </ul>
             </nav>
         </div>
@@ -411,7 +448,6 @@
                     </div>
                     <div class="col-sm-6">
                         <ol class="breadcrumb float-sm-end">
-                            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Inicio</a></li>
                             {% block breadcrumb %}{% endblock %}
                         </ol>
                     </div>
@@ -479,9 +515,8 @@
             });
         }
     });
-
-    
 </script>
+
 <script>
     (function() {
         const logo = document.getElementById('sidebar-logo');
@@ -494,7 +529,6 @@
         // Función para cambiar el logo según el estado
         function setLogo(esGrande) {
             logo.src = esGrande ? logoGrande : logoChico;
-            // Ajustar clase para cambiar el tamaño vía CSS (opcional, pero útil)
             if (esGrande) {
                 logo.classList.add('logo-expanded');
                 logo.classList.remove('logo-collapsed');
@@ -504,23 +538,19 @@
             }
         }
 
-        // Estado actual: ¿está expandido permanentemente? (sin clase sidebar-collapse)
         function isPermanentlyExpanded() {
             return !document.body.classList.contains('sidebar-collapse');
         }
 
-        // Estado hover: false por defecto
         let hoverActive = false;
 
-        // Detectar cambios permanentes (por clic en el botón)
         const observer = new MutationObserver(function(mutations) {
             mutations.forEach(function(mutation) {
                 if (mutation.attributeName === 'class') {
                     if (isPermanentlyExpanded()) {
                         setLogo(true);
-                        hoverActive = false; // al expandir permanentemente, desactivamos hover
+                        hoverActive = false;
                     } else {
-                        // Si no está permanentemente expandido, usar el estado hover
                         if (!hoverActive) {
                             setLogo(false);
                         }
@@ -530,7 +560,6 @@
         });
         observer.observe(document.body, { attributes: true });
 
-        // Manejar hover sobre el sidebar (solo cuando NO está permanentemente expandido)
         const sidebar = document.querySelector('.app-sidebar');
         if (sidebar) {
             sidebar.addEventListener('mouseenter', function() {
@@ -547,7 +576,6 @@
             });
         }
 
-        // Inicializar al cargar
         if (isPermanentlyExpanded()) {
             setLogo(true);
         } else {

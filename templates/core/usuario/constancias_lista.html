@@ -6,23 +6,168 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<style>
+    /* Estilos modernos para tabla y contenedores */
+    .custom-table-container {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        margin-top: 20px;
+    }
+
+    .table-toolbar {
+        padding: 15px 20px;
+        background: #fff;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn-header-primary {
+        background-color: white;
+        color: #005EC4 !important;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-header-primary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .btn-header-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-header-tertiary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+        color: #005EC4;
+    }
+
+    .btn-action-primary {
+        background-color: #005EC4;
+        color: white !important;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .btn-action-primary:hover {
+        opacity: 0.8;
+        transform: translateY(-1px);
+    }
+
+    .btn-action-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .btn-action-tertiary:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    /* DataTables sobreescritura */
+    .dataTables_wrapper .dataTables_filter {
+        display: none;  /* Ocultamos el buscador nativo */
+    }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        margin-top: 1rem;
+    }
+
+    .page-link {
+        color: #8D8D8D;
+        border: none;
+        border-radius: 6px;
+        margin: 0 2px;
+        font-weight: 500;
+    }
+
+    .page-link:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .page-item.active .page-link {
+        background-color: #005EC4;
+        color: white;
+    }
+
+    table.dataTable thead th {
+        background-color: #005EC4;
+        color: white;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+    }
+
+    table.dataTable tbody td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    .table-actions {
+        display: flex;
+        gap: 5px;
+        justify-content: end;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Listado de entidades</h3>
+<div class="custom-table-container">
+    <div class="table-toolbar d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-medium text-muted">Listado de entidades</h6>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="input-group" style="max-width: 300px;">
+                <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar por RFC o razón social...">
+            </div>
+            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
+                <i class="bi bi-file-earmark-excel"></i>
+            </button>
+        </div>
     </div>
-    <div class="card-body">
-        <table id="tablaConstancias" class="table table-bordered table-striped" style="width:100%">
+    <div class="table-responsive">
+        <table id="tablaConstancias" class="table mb-0">
             <thead>
-                <tr>
+               
                     <th>Razón Social</th>
+                    <th>Tipo</th>     
                     <th>RFC</th>
                     <th>Estatus</th>
                     <th>Fecha constancia</th>
                     <th>Constancia</th>
-                    <th>Acciones</th>
+                    <th >Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -99,6 +244,7 @@
 {% block extra_scripts %}
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
     let dataTable;
 
@@ -113,6 +259,7 @@
                     data: data,
                     columns: [
                         { data: 'razon_social' },
+                         { data: 'tipo_nombre' },     
                         { data: 'rfc' },
                         { data: 'estatus' },
                         { data: 'fecha_constancia' },
@@ -121,7 +268,7 @@
                             render: function(constancia, type, row) {
                                 if (constancia == 1) {
                                     let url = "{% url 'usuario_constancias_descargar_pdf' 'RFC_PLACEHOLDER' %}".replace('RFC_PLACEHOLDER', row.rfc);
-                                    return `<a href="${url}" class="text-danger" title="Descargar constancia"><i class="bi bi-file-pdf" style="font-size: 1.5rem;"></i></a>`;
+                                    return `<a href="${url}" class="text-danger" title="Descargar constancia" target="_blank"><i class="bi bi-file-pdf" style="font-size: 1.5rem;"></i></a>`;
                                 } else {
                                     return '<i class="bi bi-file-pdf text-secondary" style="font-size: 1.5rem;" title="Sin constancia"></i>';
                                 }
@@ -131,12 +278,14 @@
                             data: null,
                             render: function(row) {
                                 return `
-                                    <button class="btn btn-sm btn-info btn-upload" data-rfc="${row.rfc}" data-tipo="${row.tipo}" title="Subir constancia">
-                                        <i class="bi bi-upload"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-secondary btn-historial" data-rfc="${row.rfc}" title="Ver historial">
-                                        <i class="bi bi-clock-history"></i>
-                                    </button>
+                                    <div class="table-actions">
+                                        <button class="btn-action-primary btn-upload" data-rfc="${row.rfc}" data-tipo="${row.tipo}" title="Subir constancia">
+                                            <i class="bi bi-upload"></i>
+                                        </button>
+                                        <button class="btn-action-tertiary btn-historial" data-rfc="${row.rfc}" title="Ver historial">
+                                            <i class="bi bi-clock-history"></i>
+                                        </button>
+                                    </div>
                                 `;
                             }
                         }
@@ -144,7 +293,13 @@
                     language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
                     pageLength: 20,
                     order: [[1, 'asc']],
-                    columnDefs: [{ orderable: false, targets: 5 }]
+                    columnDefs: [{ orderable: false, targets: 5 }],
+                    dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+                    searching: true
+                });
+                // Conectar buscador personalizado
+                $('#searchInput').off('keyup').on('keyup', function() {
+                    dataTable.search(this.value).draw();
                 });
             },
             error: function() { alert('Error al cargar datos'); }
@@ -241,6 +396,28 @@
                 },
                 error: function() { alert('Error al cargar historial'); }
             });
+        });
+
+        // Exportar a Excel (datos visibles actualmente)
+        $('#btnExportarExcel').click(function() {
+            const data = dataTable.rows({ search: 'applied' }).data().toArray();
+            const wsData = data.map(row => ({
+                'Razón Social': row.razon_social,
+                'RFC': row.rfc,
+                'Estatus': row.estatus,
+                'Fecha constancia': row.fecha_constancia,
+                'Constancia cargada': row.constancia === 1 ? 'Sí' : 'No'
+            }));
+            const ws = XLSX.utils.json_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Constancias');
+            XLSX.writeFile(wb, `constancias_${new Date().toISOString().slice(0,19)}.xlsx`);
+        });
+
+        // Tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function(el) {
+            new bootstrap.Tooltip(el);
         });
     });
 </script>

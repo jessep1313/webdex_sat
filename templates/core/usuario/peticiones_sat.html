@@ -2,13 +2,86 @@
 {% load static %}
 
 {% block title %}Peticiones SAT CFDI{% endblock %}
-{% block content_title %}Solicitar CFDI al SAT (Recibidas){% endblock %}
+{% block content_title %}Solicitar CFDI al SAT {% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<style>
+    .custom-table-container {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        margin-top: 20px;
+    }
+    .table-toolbar {
+        padding: 15px 20px;
+        background: #fff;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .status-pill {
+        padding: 4px 12px;
+        border-radius: 50rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+    }
+    .pill-green { background-color: #e6f4ea; color: #1e8e3e; }
+    .pill-yellow { background-color: #fef7e0; color: #b08a00; }
+    table.dataTable thead th {
+        background-color: #005EC4;
+        color: white;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+    }
+    table.dataTable tbody td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+    .page-link {
+        color: #8D8D8D;
+        border: none;
+        border-radius: 6px;
+        margin: 0 2px;
+        font-weight: 500;
+    }
+    .page-link:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+    .page-item.active .page-link {
+        background-color: #005EC4;
+        color: white;
+    }
+    .dataTables_wrapper .dataTables_filter {
+        float: right;
+        margin-bottom: 0;
+    }
+    .dataTables_wrapper .dataTables_filter input {
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 0.375rem 0.75rem;
+        margin-left: 0.5rem;
+    }
+    .dataTables_wrapper .dataTables_length, 
+    .dataTables_wrapper .dataTables_info, 
+    .dataTables_wrapper .dataTables_paginate {
+        margin-top: 1rem;
+    }
+    .card-primary.card-outline {
+        border-top: 3px solid #005EC4;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
+<!-- Formulario de nueva solicitud -->
 <div class="card card-primary card-outline">
     <div class="card-header">
         <h3 class="card-title">Nueva solicitud</h3>
@@ -28,22 +101,22 @@
                 <label for="tipo" class="form-label">Tipo de solicitud</label>
                 {{ form.tipo }}
             </div>
-
-            <button type="submit" class="btn btn-primary">Solicitar</button>
+            <button type="submit" class="btn btn-primary" style="background-color:#005EC4; border:none;">Solicitar</button>
         </form>
     </div>
 </div>
 
-<!-- Dentro del formulario, después de los campos de fecha -->
-
-
-<div class="card mt-4">
-    <div class="card-header">
-        <h3 class="card-title">Historial de peticiones</h3>
+<!-- Tabla moderna con toolbar (solo búsqueda) -->
+<div class="custom-table-container">
+    <div class="table-toolbar d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-medium text-muted">Historial de peticiones</h6>
+        <div class="input-group" style="max-width: 300px;">
+            <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
+            <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
+        </div>
     </div>
-    <div class="card-body">
-        <table id="tablaPeticiones" class="table table-bordered table-striped">
-            <!-- En la tabla del historial, agregar una columna "Tipo" -->
+    <div class="table-responsive">
+        <table id="tablaPeticiones" class="table mb-0">
             <thead>
                 <tr>
                     <th>ID Petición</th>
@@ -58,13 +131,23 @@
             <tbody>
                 {% for p in peticiones %}
                 <tr>
-                    <td>{{ p.idpeticion }}</td>
+                    <td>{{ p.idpeticion|default:"-" }}</td>
                     <td>{{ p.fechainicio|date:"d/m/Y" }}</td>
                     <td>{{ p.fechafinal|date:"d/m/Y" }}</td>
-                    <td>{% if p.tipo == 'R' %}Recibidas{% else %}Emitidas{% endif %}</td>
-                    <td>{{ p.CodEstatus }}</td>
-                    <td>{{ p.Mensaje }}</td>
+                    <td>
+                        {% if p.tipo == 'R' %}
+                            <span class="status-pill pill-green">Recibidas</span>
+                        {% else %}
+                            <span class="status-pill pill-yellow">Emitidas</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ p.CodEstatus|default:"-" }}</td>
+                    <td>{{ p.Mensaje|truncatechars:50|default:"-" }}</td>
                     <td>{{ p.created_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">No hay peticiones registradas</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -77,18 +160,36 @@
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script>
-    $(document).ready(function() {
-        var table = $('#tablaPeticiones');
-        var tbody = table.find('tbody');
-        var hasData = tbody.length && tbody[0].rows.length > 0 && !(tbody[0].rows[0].cells.length === 1 && tbody[0].rows[0].cells[0].getAttribute('colspan') === '6');
-        if (hasData) {
-            table.DataTable({
-                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-                pageLength: 10,
-                order: [[5, 'desc']],
-                columnDefs: [{ orderable: false, targets: 5 }]
+$(document).ready(function() {
+    var table = $('#tablaPeticiones');
+    var hasData = table.find('tbody tr').length > 0 && table.find('tbody tr td[colspan]').length === 0;
+    var dataTable = null;
+
+    if (hasData) {
+        dataTable = table.DataTable({
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 10,
+            order: [[6, 'desc']],   // ordenar por fecha creación (índice 6)
+            dom: '<"d-none"l>tip',   // oculta selector de longitud, conserva info y paginación
+            initComplete: function() {
+                $('#searchInput').on('keyup', function() {
+                    dataTable.search(this.value).draw();
+                });
+            }
+        });
+    } else {
+        // Búsqueda manual si no hay datos
+        $('#searchInput').on('keyup', function() {
+            var searchText = $(this).val().toLowerCase();
+            table.find('tbody tr').each(function() {
+                var rowText = $(this).text().toLowerCase();
+                if (rowText.indexOf(searchText) !== -1)
+                    $(this).show();
+                else
+                    $(this).hide();
             });
-        }
-    });
+        });
+    }
+});
 </script>
 {% endblock %}

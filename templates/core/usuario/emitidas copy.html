@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}CFDI Emitidas{% endblock %}
+{% block content_title %}Facturas Emitidas - {{ request.session.empresa_nombre }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<!-- Filtro de fechas -->
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">Filtro de fechas</h3>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3" id="filtroForm">
+            <div class="col-md-4">
+                {{ form.fecha_inicio.label_tag }}
+                {{ form.fecha_inicio }}
+            </div>
+            <div class="col-md-4">
+                {{ form.fecha_fin.label_tag }}
+                {{ form.fecha_fin }}
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">Filtrar</button>
+                <a href="{% url 'usuario_emitidas' %}" class="btn btn-secondary">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Resumen y acciones -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card card-info">
+            <div class="card-header">
+                <h3 class="card-title">Resumen</h3>
+            </div>
+            <div class="card-body">
+                <p><strong>Total de facturas:</strong> <span id="totalFacturas">{{ total_registros }}</span></p>
+                <p><strong>Suma total:</strong> $<span id="sumaTotal">{{ suma_total|floatformat:2 }}</span> MXN</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-warning">
+            <div class="card-header">
+                <h3 class="card-title">Acciones</h3>
+            </div>
+            <div class="card-body">
+                <button type="button" class="btn btn-info" id="btnRevisarPeticiones">Revisar peticiones</button>
+                <small class="text-muted">(Descarga y procesa las solicitudes de CFDI emitidas pendientes)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card card-success">
+            <div class="card-header">
+                <h3 class="card-title">Gráficos</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <canvas id="chartCantidad" style="height: 300px;"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <canvas id="chartMonto" style="height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla de CFDI -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Listado de CFDI</h3>
+    </div>
+    <div class="card-body">
+        <table id="tablaCfdi" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>UUID</th>
+                    <th>Fecha</th>
+                    <th>RFC Emisor</th>
+                    <th>RFC Receptor</th>
+                    <th>Total</th>
+                    <th>Moneda</th>
+                    <th>Forma de pago</th>
+                    <th>Método de pago</th>
+                    <th>Fecha timbrado</th>
+                    <th>Saldo pendiente</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Las filas se llenarán con DataTables -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal de carga con logs -->
+<div class="modal fade" id="modalCarga" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Procesando peticiones SAT</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+                <div id="logContainer" style="max-height: 300px; overflow-y: auto; background: #f8f9fc; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 0.9rem;">
+                    <p>Iniciando procesamiento...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Datos iniciales en JSON -->
+{{ data_json|json_script:"datos-iniciales" }}
+{{ meses|json_script:"meses-data" }}
+{{ cantidades|json_script:"cantidades-data" }}
+{{ montos|json_script:"montos-data" }}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+    // Cargar datos iniciales desde los elementos JSON
+    const datosIniciales = JSON.parse(document.getElementById('datos-iniciales').textContent);
+    const mesesIniciales = JSON.parse(document.getElementById('meses-data').textContent);
+    const cantidadesIniciales = JSON.parse(document.getElementById('cantidades-data').textContent);
+    const montosIniciales = JSON.parse(document.getElementById('montos-data').textContent);
+
+    let chartCantidad, chartMonto;
+    let dataTable;
+
+    function actualizarDatos(respuesta) {
+        $('#totalFacturas').text(respuesta.total);
+        $('#sumaTotal').text(parseFloat(respuesta.suma_total).toFixed(2));
+
+        if (chartCantidad) chartCantidad.destroy();
+        if (chartMonto) chartMonto.destroy();
+        if (respuesta.meses.length) {
+            chartCantidad = new Chart(document.getElementById('chartCantidad'), {
+                type: 'bar',
+                data: {
+                    labels: respuesta.meses,
+                    datasets: [{
+                        label: 'Cantidad de facturas',
+                        data: respuesta.cantidades,
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Cantidad' } },
+                        x: { title: { display: true, text: 'Mes' } }
+                    }
+                }
+            });
+            chartMonto = new Chart(document.getElementById('chartMonto'), {
+                type: 'line',
+                data: {
+                    labels: respuesta.meses,
+                    datasets: [{
+                        label: 'Monto total (MXN)',
+                        data: respuesta.montos,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Monto (MXN)' } },
+                        x: { title: { display: true, text: 'Mes' } }
+                    }
+                }
+            });
+        }
+
+        if (dataTable) dataTable.clear().destroy();
+        dataTable = $('#tablaCfdi').DataTable({
+            data: respuesta.data,
+            columns: [
+                { data: 'uuid' }, { data: 'fecha' }, { data: 'rfc_emisor' }, { data: 'rfc_receptor' },
+                { data: 'total' }, { data: 'moneda' }, { data: 'forma_pago' }, { data: 'metodo_pago' },
+                { data: 'fecha_timbrado' }, { data: 'saldo_pendiente' }
+            ],
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 20,
+            order: [[1, 'desc']]
+        });
+    }
+
+    function cargarDatosFiltro() {
+        const fecha_inicio = $('#id_fecha_inicio').val();
+        const fecha_fin = $('#id_fecha_fin').val();
+        $.ajax({
+            url: window.location.href,
+            data: { fecha_inicio: fecha_inicio, fecha_fin: fecha_fin },
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(resp) { actualizarDatos(resp); },
+            error: function() { alert('Error al cargar los datos'); }
+        });
+    }
+
+    $(document).ready(function() {
+        // Inicializar DataTable con datos iniciales
+        dataTable = $('#tablaCfdi').DataTable({
+            data: datosIniciales,
+            columns: [
+                { data: 'uuid' }, { data: 'fecha' }, { data: 'rfc_emisor' }, { data: 'rfc_receptor' },
+                { data: 'total' }, { data: 'moneda' }, { data: 'forma_pago' }, { data: 'metodo_pago' },
+                { data: 'fecha_timbrado' }, { data: 'saldo_pendiente' }
+            ],
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 20,
+            order: [[1, 'desc']]
+        });
+
+        if (mesesIniciales.length) {
+            chartCantidad = new Chart(document.getElementById('chartCantidad'), {
+                type: 'bar',
+                data: {
+                    labels: mesesIniciales,
+                    datasets: [{
+                        label: 'Cantidad de facturas',
+                        data: cantidadesIniciales,
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Cantidad' } },
+                        x: { title: { display: true, text: 'Mes' } }
+                    }
+                }
+            });
+            chartMonto = new Chart(document.getElementById('chartMonto'), {
+                type: 'line',
+                data: {
+                    labels: mesesIniciales,
+                    datasets: [{
+                        label: 'Monto total (MXN)',
+                        data: montosIniciales,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Monto (MXN)' } },
+                        x: { title: { display: true, text: 'Mes' } }
+                    }
+                }
+            });
+        }
+
+        // Filtro vía AJAX
+        $('#filtroForm').on('submit', function(e) {
+            e.preventDefault();
+            cargarDatosFiltro();
+        });
+
+        // Botón "Revisar peticiones"
+        $('#btnRevisarPeticiones').click(function() {
+            $('#modalCarga').modal('show');
+            $('#logContainer').html('<p>Iniciando procesamiento...</p>');
+            $.ajax({
+                url: "{% url 'usuario_revisar_peticiones_emitidas' %}",
+                method: "POST",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                success: function(resp) {
+                    let logsHtml = '';
+                    if (resp.logs && resp.logs.length) {
+                        resp.logs.forEach(function(msg) {
+                            logsHtml += '<p>' + msg + '</p>';
+                        });
+                    } else {
+                        logsHtml = '<p>' + resp.message + '</p>';
+                    }
+                    $('#logContainer').html(logsHtml);
+                    setTimeout(function() {
+                        $('#modalCarga').modal('hide');
+                        cargarDatosFiltro();
+                    }, 3000);
+                },
+                error: function() {
+                    $('#logContainer').html('<p class="text-danger">Error de conexión al servidor.</p>');
+                    setTimeout(function() { $('#modalCarga').modal('hide'); }, 3000);
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

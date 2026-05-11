@@ -16,7 +16,36 @@ from django.views.decorators.csrf import csrf_exempt
 from .views_reportes import reporte_adhoc, reporte_metadata, reporte_ejecutar
 
 
-
+def email_existe_en_sistema(email, exclude_id=None, exclude_model=None):
+    """
+    Verifica si un email ya existe en SuperAdmin, Admin o UsuarioCentral.
+    Parámetros:
+    - email: correo a verificar
+    - exclude_id: ID del registro que se está editando (para omitirlo de la verificación)
+    - exclude_model: modelo del registro que se edita (para omitir la tabla correspondiente)
+    Retorna True si el email ya existe en alguna de las otras tablas (o en la misma si no se excluye).
+    """
+    email = email.strip().lower()
+    
+    # Verificar en SuperAdmin
+    if exclude_model != SuperAdmin:
+        if SuperAdmin.objects.using('default').filter(email__iexact=email).exists():
+            return True
+    # Verificar en Admin
+    if exclude_model != Admin:
+        qs = Admin.objects.using('default').filter(email__iexact=email)
+        if exclude_id and exclude_model == Admin:
+            qs = qs.exclude(pk=exclude_id)
+        if qs.exists():
+            return True
+    # Verificar en UsuarioCentral
+    if exclude_model != UsuarioCentral:
+        qs = UsuarioCentral.objects.using('default').filter(email__iexact=email)
+        if exclude_id and exclude_model == UsuarioCentral:
+            qs = qs.exclude(pk=exclude_id)
+        if qs.exists():
+            return True
+    return False
 
 
 
@@ -327,6 +356,8 @@ def dashboard(request):
         'user_type': user_type,
         'stats': stats,
     }
+    print('Print context:')
+    print(context)
     return render(request, 'core/dashboard.html', context)
     
 
@@ -397,6 +428,12 @@ def empresas_lista(request):
     empresas = Empresa.objects.using('default').all()
     return render(request, 'core/catalogos/empresas_lista.html', {'empresas': empresas})
 
+
+def validar_rfc(rfc):
+    # RFC: 12 o 13 caracteres alfanuméricos (letras y números, sin espacios ni caracteres especiales)
+    patron = r'^[A-Z0-9]{12,13}$'
+    return re.match(patron, rfc) is not None
+
 @superadmin_required
 def empresa_crear(request):
     grupos = Grupo.objects.using('default').filter(activo=True)
@@ -407,9 +444,16 @@ def empresa_crear(request):
         activo = request.POST.get('activo') == 'on'
 
         # Validaciones
-        if not nombre or not rfc or not grupo_id:
-            messages.error(request, 'Nombre, RFC y Grupo son obligatorios.')
+        if not nombre:
+            messages.error(request, 'El nombre de la empresa es obligatorio.')
             return render(request, 'core/catalogos/empresa_form.html', {'grupos': grupos})
+        if not rfc:
+            messages.error(request, 'El RFC es obligatorio.')
+            return render(request, 'core/catalogos/empresa_form.html', {'grupos': grupos})
+        if not validar_rfc(rfc):
+            messages.error(request, 'El RFC no es válido. Debe tener 12 o 13 caracteres alfanuméricos (mayúsculas, sin espacios).')
+            return render(request, 'core/catalogos/empresa_form.html', {'grupos': grupos})
+
 
         # Verificar RFC único
         if Empresa.objects.using('default').filter(rfc=rfc).exists():
@@ -445,7 +489,11 @@ def empresa_crear(request):
             return render(request, 'core/catalogos/empresa_form.html', {'grupos': grupos})
 
         # 4. Guardar el registro de la empresa en db_central
-        grupo = Grupo.objects.using('default').get(pk=grupo_id)
+        # Grupo opcional
+        grupo = None
+        if grupo_id:
+            grupo = Grupo.objects.using('default').filter(pk=grupo_id).first()
+
         empresa = Empresa(
             nombre=nombre,
             rfc=rfc,
@@ -470,8 +518,12 @@ def empresa_editar(request, pk):
         grupo_id = request.POST.get('grupo')
         activo = request.POST.get('activo') == 'on'
 
-        if not nombre or not rfc or not grupo_id:
-            messages.error(request, 'Nombre, RFC y Grupo son obligatorios.')
+        if not nombre:
+            messages.error(request, 'El nombre es obligatorio.')
+            return render(request, 'core/catalogos/empresa_form.html', {'empresa': empresa, 'grupos': grupos})
+
+        if rfc != empresa.rfc:
+            messages.error(request, 'No está permitido cambiar el RFC de una empresa existente.')
             return render(request, 'core/catalogos/empresa_form.html', {'empresa': empresa, 'grupos': grupos})
 
         # Validar que el RFC no esté en otra empresa (excepto esta misma)
@@ -485,7 +537,7 @@ def empresa_editar(request, pk):
             return render(request, 'core/catalogos/empresa_form.html', {'empresa': empresa, 'grupos': grupos})
 
         empresa.nombre = nombre
-        empresa.grupo_id = grupo_id
+        empresa.grupo_id = grupo_id if grupo_id else None  # permitir nulo
         empresa.activo = activo
         empresa.save(using='default')
 
@@ -570,7 +622,7 @@ def admin_lista(request):
     return render(request, 'core/usuarios/admin_lista.html', {'admins': admins})
 
 @superadmin_required
-def admin_crear(request):
+def admin_crear_2(request):
     empresas = Empresa.objects.using('default').filter(activo=True)
     if request.method == 'POST':
         nombre = request.POST.get('nombre')
@@ -607,6 +659,49 @@ def admin_crear(request):
         return redirect('admin_lista')
     return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
 
+
+@superadmin_required
+def admin_crear(request):
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        email = request.POST.get('email').strip().lower()
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        empresa_id = request.POST.get('empresa')
+        activo = request.POST.get('activo') == 'on'
+
+        # Validaciones
+        if not nombre or not email or not password or not empresa_id:
+            messages.error(request, 'Nombre, email, contraseña y empresa son obligatorios.')
+            return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
+        if password != password2:
+            messages.error(request, 'Las contraseñas no coinciden.')
+            return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
+        
+        # Verificar email en todo el sistema
+        if email_existe_en_sistema(email):
+            messages.error(request, 'Este correo electrónico ya está registrado como SuperAdministrador, Administrador o Usuario. No se puede duplicar.')
+            return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
+        
+        # Obtener empresa y su grupo (puede ser None)
+        empresa = Empresa.objects.using('default').get(pk=empresa_id)
+        grupo_id = empresa.grupo_id
+
+        admin = Admin(
+            nombre=nombre,
+            email=email,
+            password=make_password(password),
+            grupo_id=grupo_id,
+            empresa_id=empresa_id,
+            activo=activo
+        )
+        admin.save(using='default')
+        messages.success(request, 'Administrador creado correctamente.')
+        return redirect('admin_lista')
+    return render(request, 'core/usuarios/admin_form.html', {'empresas': empresas})
+
+
 @superadmin_required
 def admin_editar(request, pk):
     admin = get_object_or_404(Admin, pk=pk)
@@ -631,6 +726,11 @@ def admin_editar(request, pk):
         admin.email = email
         admin.empresa_id = empresa_id
         admin.activo = activo
+
+        # Dentro de admin_editar, antes de guardar:
+        if email_existe_en_sistema(email, exclude_id=admin.id, exclude_model=Admin):
+            messages.error(request, 'El email ya está en uso por otro administrador o usuario.')
+            return render(request, 'core/usuarios/admin_form.html', {'admin': admin, 'empresas': empresas})
 
         # Actualizar grupo según la nueva empresa (si cambió)
         empresa = Empresa.objects.using('default').get(pk=empresa_id)
@@ -677,7 +777,7 @@ def usuarios_lista(request):
     return render(request, 'core/usuarios/usuarios_lista.html', {'usuarios': usuarios})
 
 @superadmin_required
-def usuario_crear(request):
+def usuario_crear_2(request):
     empresas = Empresa.objects.using('default').filter(activo=True)
     if request.method == 'POST':
         nombre = request.POST.get('nombre')
@@ -718,6 +818,50 @@ def usuario_crear(request):
         return redirect('usuarios_lista')
     return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
 
+
+@superadmin_required
+def usuario_crear(request):
+    empresas = Empresa.objects.using('default').filter(activo=True)
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre')
+        email = request.POST.get('email').strip().lower()
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        tipo = request.POST.get('tipo')
+        empresa_id = request.POST.get('empresa')
+        sucursal_id = request.POST.get('sucursal') or None
+        activo = request.POST.get('activo') == 'on'
+
+        if not nombre or not email or not password or not tipo or not empresa_id:
+            messages.error(request, 'Nombre, email, contraseña, tipo y empresa son obligatorios.')
+            return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
+        if password != password2:
+            messages.error(request, 'Las contraseñas no coinciden.')
+            return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
+        
+        # Verificar email en todo el sistema
+        if email_existe_en_sistema(email):
+            messages.error(request, 'Este correo electrónico ya está registrado como SuperAdministrador, Administrador o Usuario. No se puede duplicar.')
+            return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
+        
+        empresa = Empresa.objects.using('default').get(pk=empresa_id)
+        grupo_id = empresa.grupo_id
+
+        usuario = UsuarioCentral(
+            nombre=nombre,
+            email=email,
+            password=make_password(password),
+            tipo=tipo,
+            empresa_id=empresa_id,
+            sucursal_id=sucursal_id,
+            grupo_id=grupo_id,
+            activo=activo
+        )
+        usuario.save(using='default')
+        messages.success(request, 'Usuario creado correctamente.')
+        return redirect('usuarios_lista')
+    return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
+
 @superadmin_required
 def usuario_editar(request, pk):
     usuario = get_object_or_404(UsuarioCentral, pk=pk)
@@ -738,6 +882,12 @@ def usuario_editar(request, pk):
         if UsuarioCentral.objects.using('default').filter(email=email).exclude(pk=pk).exists():
             messages.error(request, 'Ya existe otro usuario con ese email.')
             return render(request, 'core/usuarios/usuario_form.html', {'usuario': usuario, 'empresas': empresas})
+
+
+        # Verificar email en todo el sistema
+        if email_existe_en_sistema(email):
+            messages.error(request, 'Este correo electrónico ya está registrado como SuperAdministrador, Administrador o Usuario. No se puede duplicar.')
+            return render(request, 'core/usuarios/usuario_form.html', {'empresas': empresas})
 
         # Actualizar grupo según la nueva empresa (si cambió)
         empresa = Empresa.objects.using('default').get(pk=empresa_id)
@@ -1248,7 +1398,7 @@ def admin_correos_lista(request):
     return render(request, 'core/correos/admin_correos_lista.html', {'correos': correos})
 
 @admin_required
-def admin_correo_crear(request):
+def admin_correo_crear_2(request):
     db_name = request.session.get('empresa_db_name')
     if not db_name:
         messages.error(request, 'No se ha identificado la base de datos de la empresa.')
@@ -1274,8 +1424,11 @@ def admin_correo_crear(request):
         return redirect('admin_correos_lista')
     return render(request, 'core/correos/admin_correo_form.html')
 
+
+
+
 @admin_required
-def admin_correo_editar(request, pk):
+def admin_correo_editar_2(request, pk):
     db_name = request.session.get('empresa_db_name')
     if not db_name:
         messages.error(request, 'No se ha identificado la base de datos de la empresa.')
@@ -1300,6 +1453,362 @@ def admin_correo_editar(request, pk):
             return redirect('admin_correos_lista')
         correo = {'id': row[0], 'tipo': row[1], 'titulo': row[2], 'cuerpo': row[3]}
     return render(request, 'core/correos/admin_correo_form.html', {'correo': correo})
+
+
+
+@admin_required
+def admin_correo_crear_3(request):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        messages.error(request, 'No se ha identificado la base de datos de la empresa.')
+        return redirect('dashboard')
+
+    # Obtener configuración de envío actual (si existe) - para mostrarla en el formulario
+    config_envio = None
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT * FROM configuracion_envio_correo LIMIT 1")
+        config_envio = cursor.fetchone()
+
+    if request.method == 'POST':
+        tipo = request.POST.get('tipo')
+        titulo = request.POST.get('titulo')
+        cuerpo = request.POST.get('cuerpo')
+        if not tipo or not titulo or not cuerpo:
+            messages.error(request, 'Todos los campos de la plantilla son obligatorios.')
+            return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
+
+        # Guardar plantilla
+        with connections[db_name].cursor() as cursor:
+            # Verificar si ya existe configuración para ese tipo
+            cursor.execute("SELECT COUNT(*) FROM configuracion_correos WHERE tipo = %s", [tipo])
+            if cursor.fetchone()[0] > 0:
+                messages.error(request, f'Ya existe una configuración para el tipo "{tipo}".')
+                return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
+            cursor.execute(
+                "INSERT INTO configuracion_correos (tipo, titulo, cuerpo) VALUES (%s, %s, %s)",
+                [tipo, titulo, cuerpo]
+            )
+
+        # Guardar configuración de envío (si se enviaron datos)
+        proveedor = request.POST.get('proveedor')
+        if proveedor:
+            host = request.POST.get('host')
+            puerto = request.POST.get('puerto')
+            usuario = request.POST.get('usuario')
+            password = request.POST.get('password')
+            use_tls = 1 if request.POST.get('use_tls') else 0
+            use_ssl = 1 if request.POST.get('use_ssl') else 0
+            api_key = request.POST.get('api_key')
+            logo_path = None
+            if 'logo' in request.FILES:
+                logo = request.FILES['logo']
+                ext = logo.name.split('.')[-1].lower()
+                if ext not in ['jpg', 'jpeg', 'png', 'webp']:
+                    messages.error(request, 'El logo debe ser una imagen (JPG, PNG, WEBP).')
+                    return render(request, 'core/correos/admin_correo_form.html', {'correo': correo if 'correo' in locals() else None, 'config_envio': config_envio})
+                
+                rfc_empresa = request.session.get('empresa_rfc', 'empresa')
+                nombre_archivo = f"logo_{rfc_empresa}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+                ruta = os.path.join('logos_empresa', nombre_archivo)
+                logo_path = default_storage.save(ruta, ContentFile(logo.read()))
+                
+                # Si ya existía un logo en la configuración anterior, lo borramos
+                if config_envio and config_envio.get('logo'):
+                    old_logo = config_envio['logo']
+                    if default_storage.exists(old_logo):
+                        default_storage.delete(old_logo)
+
+
+            with connections[db_name].cursor() as cursor:
+                if config_envio:
+                    cursor.execute("""
+                        UPDATE configuracion_envio_correo SET proveedor=%s, host=%s, puerto=%s, usuario=%s, password=%s,
+                        use_tls=%s, use_ssl=%s, api_key=%s, logo=%s WHERE id=%s
+                    """, [proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo_path, config_envio[0]])
+                else:
+                    cursor.execute("""
+                        INSERT INTO configuracion_envio_correo (proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo, activo)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1)
+                    """, [proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo_path])
+                messages.success(request, 'Configuración de envío guardada.')
+
+        messages.success(request, 'Configuración de correo creada correctamente.')
+        return redirect('admin_correos_lista')
+
+    return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
+
+
+@admin_required
+def admin_correo_crear(request):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        messages.error(request, 'No se ha identificado la base de datos de la empresa.')
+        return redirect('dashboard')
+
+    # Obtener configuración de envío actual (si existe) como diccionario
+    config_envio = None
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT * FROM configuracion_envio_correo LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            columns = [col[0] for col in cursor.description]
+            config_envio = dict(zip(columns, row))
+
+    if request.method == 'POST':
+        tipo = request.POST.get('tipo')
+        titulo = request.POST.get('titulo')
+        cuerpo = request.POST.get('cuerpo')
+        if not tipo or not titulo or not cuerpo:
+            messages.error(request, 'Todos los campos de la plantilla son obligatorios.')
+            return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
+
+        # Guardar plantilla
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM configuracion_correos WHERE tipo = %s", [tipo])
+            if cursor.fetchone()[0] > 0:
+                messages.error(request, f'Ya existe una configuración para el tipo "{tipo}".')
+                return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
+            cursor.execute(
+                "INSERT INTO configuracion_correos (tipo, titulo, cuerpo) VALUES (%s, %s, %s)",
+                [tipo, titulo, cuerpo]
+            )
+        messages.success(request, 'Plantilla de correo guardada correctamente.')
+
+        # Guardar / actualizar configuración de envío (si se enviaron datos)
+        proveedor = request.POST.get('proveedor')
+        if proveedor:
+            host = request.POST.get('host')
+            puerto = request.POST.get('puerto')
+            usuario = request.POST.get('usuario')
+            password = request.POST.get('password')
+            use_tls = 1 if request.POST.get('use_tls') else 0
+            use_ssl = 1 if request.POST.get('use_ssl') else 0
+            api_key = request.POST.get('api_key')
+            logo_path = None
+
+            # Procesar logo si se envió
+            if 'logo' in request.FILES:
+                logo = request.FILES['logo']
+                ext = logo.name.split('.')[-1].lower()
+                if ext not in ['jpg', 'jpeg', 'png', 'webp']:
+                    messages.error(request, 'El logo debe ser una imagen (JPG, PNG, WEBP).')
+                    return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
+                
+                rfc_empresa = request.session.get('empresa_rfc', 'empresa')
+                nombre_archivo = f"logo_{rfc_empresa}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+                ruta = os.path.join('logos_empresa', nombre_archivo)
+                logo_path = default_storage.save(ruta, ContentFile(logo.read()))
+                
+                # Eliminar logo anterior si existe
+                if config_envio and config_envio.get('logo'):
+                    old_logo = config_envio['logo']
+                    if default_storage.exists(old_logo):
+                        default_storage.delete(old_logo)
+            else:
+                # Si no se subió nuevo logo, conservar el existente (si lo hay)
+                if config_envio and config_envio.get('logo'):
+                    logo_path = config_envio['logo']
+
+            with connections[db_name].cursor() as cursor:
+                if config_envio:
+                    cursor.execute("""
+                        UPDATE configuracion_envio_correo
+                        SET proveedor=%s, host=%s, puerto=%s, usuario=%s, password=%s,
+                            use_tls=%s, use_ssl=%s, api_key=%s, logo=%s
+                        WHERE id=%s
+                    """, [proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo_path, config_envio['id']])
+                else:
+                    cursor.execute("""
+                        INSERT INTO configuracion_envio_correo
+                        (proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo, activo)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+                    """, [proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo_path])
+            messages.success(request, 'Configuración de envío guardada correctamente.')
+
+        messages.success(request, 'Configuración general de correo completada.')
+        return redirect('admin_correos_lista')
+
+    return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
+
+
+@admin_required
+def admin_correo_editar_3(request, pk):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        messages.error(request, 'No se ha identificado la base de datos de la empresa.')
+        return redirect('dashboard')
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT id, tipo, titulo, cuerpo FROM configuracion_correos WHERE id = %s", [pk])
+        row = cursor.fetchone()
+        if not row:
+            messages.error(request, 'Configuración no encontrada.')
+            return redirect('admin_correos_lista')
+        correo = {'id': row[0], 'tipo': row[1], 'titulo': row[2], 'cuerpo': row[3]}
+
+        # Obtener configuración de envío actual
+        cursor.execute("SELECT * FROM configuracion_envio_correo LIMIT 1")
+        config_envio = cursor.fetchone()
+
+    if request.method == 'POST':
+        titulo = request.POST.get('titulo')
+        cuerpo = request.POST.get('cuerpo')
+        if not titulo or not cuerpo:
+            messages.error(request, 'Título y cuerpo son obligatorios.')
+            return render(request, 'core/correos/admin_correo_form.html', {'correo': correo, 'config_envio': config_envio})
+
+        with connections[db_name].cursor() as cursor:
+            cursor.execute(
+                "UPDATE configuracion_correos SET titulo = %s, cuerpo = %s WHERE id = %s",
+                [titulo, cuerpo, pk]
+            )
+
+            # Guardar configuración de envío si enviaron datos
+            proveedor = request.POST.get('proveedor')
+            if proveedor:
+                host = request.POST.get('host')
+                puerto = request.POST.get('puerto')
+                usuario = request.POST.get('usuario')
+                password = request.POST.get('password')
+                use_tls = 1 if request.POST.get('use_tls') else 0
+                use_ssl = 1 if request.POST.get('use_ssl') else 0
+                api_key = request.POST.get('api_key')
+                logo_path = None
+                if 'logo' in request.FILES:
+                    logo = request.FILES['logo']
+                    ext = logo.name.split('.')[-1].lower()
+                    if ext not in ['jpg', 'jpeg', 'png', 'webp']:
+                        messages.error(request, 'El logo debe ser una imagen (JPG, PNG, WEBP).')
+                        return render(request, 'core/correos/admin_correo_form.html', {'correo': correo if 'correo' in locals() else None, 'config_envio': config_envio})
+                    
+                    rfc_empresa = request.session.get('empresa_rfc', 'empresa')
+                    nombre_archivo = f"logo_{rfc_empresa}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+                    ruta = os.path.join('logos_empresa', nombre_archivo)
+                    logo_path = default_storage.save(ruta, ContentFile(logo.read()))
+                    
+                    # Si ya existía un logo en la configuración anterior, lo borramos
+                    if config_envio and config_envio.get('logo'):
+                        old_logo = config_envio['logo']
+                        if default_storage.exists(old_logo):
+                            default_storage.delete(old_logo)
+
+
+
+
+                if config_envio:
+                    cursor.execute("""
+                        UPDATE configuracion_envio_correo SET proveedor=%s, host=%s, puerto=%s, usuario=%s, password=%s,
+                        use_tls=%s, use_ssl=%s, api_key=%s, logo=%s WHERE id=%s
+                    """, [proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo_path, config_envio[0]])
+                else:
+                    cursor.execute("""
+                        INSERT INTO configuracion_envio_correo (proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo, activo)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1)
+                        """, [proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo_path])
+                    messages.success(request, 'Configuración de envío guardada.')
+
+        messages.success(request, 'Configuración actualizada correctamente.')
+        return redirect('admin_correos_lista')
+
+    return render(request, 'core/correos/admin_correo_form.html', {'correo': correo, 'config_envio': config_envio})
+
+
+@admin_required
+def admin_correo_editar(request, pk):
+    db_name = request.session.get('empresa_db_name')
+    if not db_name:
+        messages.error(request, 'No se ha identificado la base de datos de la empresa.')
+        return redirect('dashboard')
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("SELECT id, tipo, titulo, cuerpo FROM configuracion_correos WHERE id = %s", [pk])
+        row = cursor.fetchone()
+        if not row:
+            messages.error(request, 'Configuración no encontrada.')
+            return redirect('admin_correos_lista')
+        correo = {'id': row[0], 'tipo': row[1], 'titulo': row[2], 'cuerpo': row[3]}
+
+        # Obtener configuración de envío actual como diccionario
+        cursor.execute("SELECT * FROM configuracion_envio_correo LIMIT 1")
+        row_envio = cursor.fetchone()
+        if row_envio:
+            columns = [col[0] for col in cursor.description]
+            config_envio = dict(zip(columns, row_envio))
+        else:
+            config_envio = None
+
+    if request.method == 'POST':
+        titulo = request.POST.get('titulo')
+        cuerpo = request.POST.get('cuerpo')
+        if not titulo or not cuerpo:
+            messages.error(request, 'Título y cuerpo son obligatorios.')
+            return render(request, 'core/correos/admin_correo_form.html', {'correo': correo, 'config_envio': config_envio})
+
+        with connections[db_name].cursor() as cursor:
+            cursor.execute(
+                "UPDATE configuracion_correos SET titulo = %s, cuerpo = %s WHERE id = %s",
+                [titulo, cuerpo, pk]
+            )
+
+            # Guardar configuración de envío si enviaron datos
+            proveedor = request.POST.get('proveedor')
+            if proveedor:
+                host = request.POST.get('host')
+                puerto = request.POST.get('puerto')
+                usuario = request.POST.get('usuario')
+                password = request.POST.get('password')
+                use_tls = 1 if request.POST.get('use_tls') else 0
+                use_ssl = 1 if request.POST.get('use_ssl') else 0
+                api_key = request.POST.get('api_key')
+                
+                # Manejo del logo
+                logo_path = None
+                if 'logo' in request.FILES:
+                    from django.core.files.storage import default_storage
+                    from django.core.files.base import ContentFile
+                    import os
+                    from datetime import datetime
+                    logo = request.FILES['logo']
+                    ext = logo.name.split('.')[-1].lower()
+                    if ext not in ['jpg', 'jpeg', 'png', 'webp']:
+                        messages.error(request, 'El logo debe ser una imagen (JPG, PNG, WEBP).')
+                        return render(request, 'core/correos/admin_correo_form.html', {'correo': correo, 'config_envio': config_envio})
+                    rfc_empresa = request.session.get('empresa_rfc', 'empresa')
+                    nombre_archivo = f"logo_{rfc_empresa}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+                    ruta = os.path.join('logos_empresa', nombre_archivo)
+                    logo_path = default_storage.save(ruta, ContentFile(logo.read()))
+                    # Eliminar logo anterior si existe
+                    if config_envio and config_envio.get('logo'):
+                        old_logo = config_envio['logo']
+                        if default_storage.exists(old_logo):
+                            default_storage.delete(old_logo)
+                else:
+                    # Si no se sube nuevo logo, conservar el anterior
+                    logo_path = config_envio.get('logo') if config_envio else None
+
+                if config_envio:
+                    cursor.execute("""
+                        UPDATE configuracion_envio_correo 
+                        SET proveedor=%s, host=%s, puerto=%s, usuario=%s, password=%s,
+                            use_tls=%s, use_ssl=%s, api_key=%s, logo=%s
+                        WHERE id=%s
+                    """, [proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo_path, config_envio['id']])
+                else:
+                    cursor.execute("""
+                        INSERT INTO configuracion_envio_correo 
+                        (proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo, activo)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+                    """, [proveedor, host, puerto, usuario, password, use_tls, use_ssl, api_key, logo_path])
+
+                messages.success(request, 'Configuración de envío guardada.')
+            else:
+                # Si no se seleccionó proveedor, no se modifica la configuración de envío
+                pass
+
+        messages.success(request, 'Configuración actualizada correctamente.')
+        return redirect('admin_correos_lista')
+
+    return render(request, 'core/correos/admin_correo_form.html', {'correo': correo, 'config_envio': config_envio})
 
 @admin_required
 def admin_correo_eliminar(request, pk):
@@ -3529,7 +4038,7 @@ def usuario_opiniones(request):
     return render(request, 'core/usuario/opiniones_lista.html')
 
 @usuario_required
-def usuario_opiniones_data(request):
+def usuario_opiniones_data_2(request):
     """Devuelve JSON con los datos consolidados de todas las entidades."""
     db_name = request.session.get('empresa_db_name')
     rfc_empresa = request.session.get('empresa_rfc')
@@ -3593,6 +4102,84 @@ def usuario_opiniones_data(request):
             'tipo': row[5],
         })
     return JsonResponse(data, safe=False)
+
+
+@usuario_required
+def usuario_opiniones_data(request):
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'proveedor' as tipo
+            FROM proveedores WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows = list(cursor.fetchall())
+
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'proveedor_sin_cfdi' as tipo
+            FROM proveedores_sin_cfdi WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'cliente' as tipo
+            FROM clientes WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+        cursor.execute("""
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'cliente_sin_cfdi' as tipo
+            FROM clientes_sin_cfdi WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        rows.extend(cursor.fetchall())
+
+    data = []
+    for row in rows:
+        rfc = row[0] or ''
+        razon_social = row[1] or ''
+        estatus_raw = row[2] if row[2] is not None else ''
+        fecha_opinion = row[3]
+        opinion = row[4] or 0
+        tipo_interno = row[5]
+
+        # Mapear estatus
+        if estatus_raw == 'SinRespuesta':
+            estatus_display = 'Opinion No Publica' if fecha_opinion else '-'
+        else:
+            estatus_display = estatus_raw
+
+        # Mapear tipo a nombre amigable
+        if tipo_interno == 'proveedor':
+            tipo_nombre = 'Proveedor'
+        elif tipo_interno == 'proveedor_sin_cfdi':
+            tipo_nombre = 'Proveedor Prospecto'
+        elif tipo_interno == 'cliente':
+            tipo_nombre = 'Cliente'
+        elif tipo_interno == 'cliente_sin_cfdi':
+            tipo_nombre = 'Cliente Prospecto'
+        else:
+            tipo_nombre = tipo_interno
+
+        data.append({
+            'rfc': rfc,
+            'razon_social': razon_social,
+            'tipo_nombre': tipo_nombre,
+            'estatus': estatus_display,
+            'fecha_opinion': fecha_opinion.strftime('%Y-%m-%d') if fecha_opinion else '',
+            'opinion': opinion,
+            'tipo': tipo_interno,   # para uso interno
+        })
+    return JsonResponse(data, safe=False)
+
+
+
+
+
+
+
 
 def extraer_datos_pdf(pdf_file):
     """Extrae fecha y resultado del PDF de opinión."""
@@ -4389,11 +4976,21 @@ def usuario_constancias_data(request):
         """, [rfc_empresa])
         rows.extend(cursor.fetchall())
 
+    # Mapeo de tipo interno a nombre amigable
+    tipo_nombres = {
+        'proveedor': 'Proveedor',
+        'proveedor_sin_cfdi': 'Proveedor Prospecto',
+        'cliente': 'Cliente',
+        'cliente_sin_cfdi': 'Cliente Prospecto'
+    }
+
     data = []
     for row in rows:
 
         constancia_flag = row[4] or 0
         estatus_display = 'Cargada' if constancia_flag == 1 else 'Sin Cargar'
+        tipo = row[5]
+        tipo_nombre = tipo_nombres.get(tipo, tipo)
 
         data.append({
             'rfc': row[0] or '',
@@ -4402,6 +4999,8 @@ def usuario_constancias_data(request):
             'fecha_constancia': row[3].strftime('%Y-%m-%d') if row[3] else '',
             'constancia': row[4] or 0,
             'tipo': row[5],
+            'tipo_nombre': tipo_nombre,
+
         })
     return JsonResponse(data, safe=False)
 
@@ -4838,7 +5437,7 @@ def usuario_validacion_domicilio_data(request):
     with connections[db_name].cursor() as cursor:
         # Proveedores
         cursor.execute("""
-            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad, 'proveedor' as tipo
             FROM proveedores
             WHERE rfc_identy = %s
         """, [rfc_empresa])
@@ -4846,7 +5445,7 @@ def usuario_validacion_domicilio_data(request):
 
         # Proveedores sin CFDI
         cursor.execute("""
-            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad, 'proveedor_sin_cfdi' as tipo
             FROM proveedores_sin_cfdi
             WHERE rfc_identy = %s
         """, [rfc_empresa])
@@ -4854,7 +5453,7 @@ def usuario_validacion_domicilio_data(request):
 
         # Clientes
         cursor.execute("""
-            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad, 'cliente' as tipo
             FROM clientes
             WHERE rfc_identy = %s
         """, [rfc_empresa])
@@ -4862,14 +5461,24 @@ def usuario_validacion_domicilio_data(request):
 
         # Clientes sin CFDI
         cursor.execute("""
-            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad, 'cliente_sin_cfdi' as tipo
             FROM clientes_sin_cfdi
             WHERE rfc_identy = %s
         """, [rfc_empresa])
         rows.extend(cursor.fetchall())
 
+    # Mapeo de tipo interno a nombre amigable
+    tipo_nombres = {
+        'proveedor': 'Proveedor',
+        'proveedor_sin_cfdi': 'Proveedor sin CFDI',
+        'cliente': 'Cliente',
+        'cliente_sin_cfdi': 'Cliente sin CFDI'
+    }
+
     data = []
     for row in rows:
+        tipo = row[10]  # índice del campo tipo
+        tipo_nombre = tipo_nombres.get(tipo, tipo)
         data.append({
             'rfc': row[0] or '',
             'razon_social': row[1] or '',
@@ -4881,6 +5490,8 @@ def usuario_validacion_domicilio_data(request):
             'municipio': row[7] or '',
             'estado': row[8] or '',
             'ciudad': row[9] or '',
+            'tipo': tipo,
+            'tipo_nombre': tipo_nombre,
         })
     return JsonResponse(data, safe=False)
 
@@ -5548,3 +6159,198 @@ def repse_descargar_historial(request, id_historial):
     if not os.path.exists(full_path):
         raise Http404("El archivo ya no existe en el servidor")
     return FileResponse(open(full_path, 'rb'), as_attachment=True, filename=os.path.basename(file_path))
+
+
+from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import render, get_object_or_404
+from django.db import connections
+from django.http import JsonResponse, HttpResponseForbidden
+from django.utils import timezone
+import hashlib
+
+def validar_token(request, token):
+    db_name = request.session.get('empresa_db_name')  # pero el público no tiene sesión
+    # Mejor: identificar la empresa a partir del token? 
+    # Para simplificar, el token debe contener la empresa o debemos buscarla en todas las BD.
+    # Como estamos en multiempresa, el token debe incluir el nombre de la BD o almacenar en relación.
+    # Opción más segura: el token tiene un prefijo con el nombre de la BD o el RFC de la empresa.
+    # Para este ejemplo, asumiremos que el token se pasa y que la vista buscará la empresa correspondiente.
+    return render(request, 'public/opinion_form.html', {'token': token})
+
+
+def formulario_opinion_publico(request, token):
+    # Buscar el token en la tabla central
+    with connections['default'].cursor() as cursor:
+        cursor.execute("""
+            SELECT db_name, rfc_empresa, rfc_contribuyente, tipo
+            FROM opinion_tokens_global
+            WHERE token = %s AND usado = 0
+              AND (fecha_expiracion > NOW() OR fecha_expiracion IS NULL)
+        """, [token])
+        row = cursor.fetchone()
+        if not row:
+            return HttpResponseForbidden("Token inválido o expirado")
+        db_name, rfc_empresa, rfc_contribuyente, tipo = row
+
+    # Obtener la empresa (necesaria para logo y contexto)
+    from apps.empresas.models import Empresa
+    empresa = Empresa.objects.using('default').get(rfc=rfc_empresa)
+
+    # Guardar datos en sesión (opcional, para reutilizar funciones existentes)
+    request.session['empresa_db_name'] = db_name
+    request.session['empresa_rfc'] = rfc_empresa
+    request.session['empresa_nombre'] = empresa.nombre
+
+    tabla_map = {
+        'proveedor': 'proveedores',
+        'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+        'cliente': 'clientes',
+        'cliente_sin_cfdi': 'clientes_sin_cfdi'
+    }
+    tabla = tabla_map.get(tipo)
+    if not tabla:
+        return HttpResponseForbidden("Tipo de entidad inválido")
+
+    if request.method == 'POST' and request.FILES.get('pdf'):
+        archivo = request.FILES['pdf']
+        # Validar archivo (extension .pdf)
+        if not archivo.name.lower().endswith('.pdf'):
+            return JsonResponse({'error': 'Solo se aceptan archivos PDF'}, status=400)
+        # Extraer datos del PDF (fecha, resultado) - función ya existente
+        from .views import extraer_datos_pdf  # o copia la función extraer_datos_pdf aquí
+        try:
+            fecha_opinion, resultado = extraer_datos_pdf(archivo)
+        except Exception as e:
+            return JsonResponse({'error': f'Error al procesar PDF: {str(e)}'}, status=400)
+
+        # Guardar archivo PDF en media/opinion/...
+        año = fecha_opinion.year
+        mes = fecha_opinion.month
+        ruta = os.path.join('opinion', rfc_contribuyente, str(año), f"{mes:02d}")
+        nombre_archivo = f"{rfc_contribuyente}_{fecha_opinion.strftime('%Y%m%d')}.pdf"
+        archivo.seek(0)
+        pdf_path = default_storage.save(os.path.join(ruta, nombre_archivo), ContentFile(archivo.read()))
+
+        with connections[db_name].cursor() as cursor:
+            # Insertar en historial
+            cursor.execute("""
+                INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
+                VALUES (%s, %s, %s, %s, %s)
+            """, [rfc_contribuyente, tipo, pdf_path, resultado, fecha_opinion])
+            # Actualizar tabla principal (Estatus, fecha_opinion, opinion=1)
+            cursor.execute(f"""
+                UPDATE {tabla}
+                SET Estatus = %s, fecha_opinion = %s, opinion = 1
+                WHERE RFC = %s AND rfc_identy = %s
+            """, [resultado, fecha_opinion, rfc_contribuyente, rfc_empresa])
+        # Marcar token como usado
+        with connections['default'].cursor() as cursor:
+            cursor.execute("UPDATE opinion_tokens_global SET usado = 1 WHERE token = %s", [token])
+        return JsonResponse({'success': True, 'message': 'Opinión subida correctamente'})
+
+    # GET: mostrar formulario
+    return render(request, 'core/public/opinion_form.html', {
+        'token': token,
+        'rfc': rfc_contribuyente,
+        'empresa_nombre': empresa.nombre
+    })
+
+
+
+from django.shortcuts import render, get_object_or_404
+from django.db import connections
+from django.http import HttpResponseForbidden, JsonResponse
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+import os
+from datetime import datetime
+import PyPDF2
+import re
+
+def formulario_constancia_publico(request, token):
+    # Buscar token en tabla central
+    with connections['default'].cursor() as cursor:
+        cursor.execute("""
+            SELECT db_name, rfc_empresa, rfc_contribuyente, tipo
+            FROM constancia_tokens_global
+            WHERE token = %s AND usado = 0
+              AND (fecha_expiracion > NOW() OR fecha_expiracion IS NULL)
+        """, [token])
+        row = cursor.fetchone()
+        if not row:
+            return HttpResponseForbidden("Token inválido o expirado")
+        db_name, rfc_empresa, rfc_contribuyente, tipo = row
+
+    from apps.empresas.models import Empresa
+    empresa = Empresa.objects.using('default').get(rfc=rfc_empresa)
+
+    request.session['empresa_db_name'] = db_name
+    request.session['empresa_rfc'] = rfc_empresa
+    request.session['empresa_nombre'] = empresa.nombre
+
+    tabla_map = {
+        'proveedor': 'proveedores',
+        'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+        'cliente': 'clientes',
+        'cliente_sin_cfdi': 'clientes_sin_cfdi'
+    }
+    tabla = tabla_map.get(tipo)
+    if not tabla:
+        return HttpResponseForbidden("Tipo de entidad inválido")
+
+    if request.method == 'POST' and request.FILES.get('pdf'):
+        archivo = request.FILES['pdf']
+        # Validar archivo
+        if not archivo.name.lower().endswith('.pdf'):
+            return JsonResponse({'error': 'Solo se aceptan archivos PDF'}, status=400)
+        # Extraer datos de la constancia (rfc y domicilio) - reutilizamos la función existente
+        from .views import extraer_datos_constancia  # asegúrate de tenerla
+        try:
+            datos = extraer_datos_constancia(archivo)
+        except Exception as e:
+            return JsonResponse({'error': f'Error al procesar PDF: {str(e)}'}, status=400)
+
+        # Guardar PDF
+        año = datos['fecha_constancia'].year
+        mes = datos['fecha_constancia'].month
+        ruta = os.path.join('constancia', rfc_contribuyente, str(año), f"{mes:02d}")
+        nombre_archivo = f"{rfc_contribuyente}_{datos['fecha_constancia'].strftime('%Y%m%d')}.pdf"
+        archivo.seek(0)
+        pdf_path = default_storage.save(os.path.join(ruta, nombre_archivo), ContentFile(archivo.read()))
+
+        # Insertar en historial y actualizar tabla principal
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO constancias_historial
+                (rfc, tipo, archivo_pdf, fecha_constancia, codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, [
+                rfc_contribuyente, tipo, pdf_path, datos['fecha_constancia'],
+                datos.get('codigoPostal', ''), datos.get('calle', ''), datos.get('noInt', ''),
+                datos.get('noExt', ''), datos.get('colonia', ''), datos.get('estado', ''),
+                datos.get('municipio', ''), datos.get('ciudad', '')
+            ])
+            cursor.execute(f"""
+                UPDATE {tabla}
+                SET constancia = 1, fecha_constancia = %s,
+                    codigoPostal = %s, calle = %s, noInt = %s, noExt = %s,
+                    colonia = %s, estado = %s, municipio = %s, ciudad = %s
+                WHERE RFC = %s AND rfc_identy = %s
+            """, [
+                datos['fecha_constancia'], datos.get('codigoPostal', ''), datos.get('calle', ''),
+                datos.get('noInt', ''), datos.get('noExt', ''), datos.get('colonia', ''),
+                datos.get('estado', ''), datos.get('municipio', ''), datos.get('ciudad', ''),
+                rfc_contribuyente, rfc_empresa
+            ])
+
+        # Marcar token como usado
+        with connections['default'].cursor() as cursor:
+            cursor.execute("UPDATE constancia_tokens_global SET usado = 1 WHERE token = %s", [token])
+
+        return JsonResponse({'success': True, 'message': 'Constancia subida correctamente'})
+
+    return render(request, 'core/public/constancia_form.html', {
+        'token': token,
+        'rfc': rfc_contribuyente,
+        'empresa_nombre': empresa.nombre
+    })

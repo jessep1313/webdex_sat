@@ -7,10 +7,136 @@
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<style>
+    /* Estilos modernos para tabla y contenedores */
+    .custom-table-container {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        margin-top: 20px;
+    }
+
+    .table-toolbar {
+        padding: 15px 20px;
+        background: #fff;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn-header-primary {
+        background-color: white;
+        color: #005EC4 !important;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-header-primary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .btn-header-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-header-tertiary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+        color: #005EC4;
+    }
+
+    .status-pill {
+        padding: 4px 12px;
+        border-radius: 50rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .pill-green {
+        background-color: #e6f4ea;
+        color: #1e8e3e;
+    }
+
+    .pill-red {
+        background-color: #fce8e6;
+        color: #d93025;
+    }
+
+    .pill-yellow {
+        background-color: #fef7e0;
+        color: #b08a00;
+    }
+
+    /* DataTables sobreescritura para que se integre con el toolbar */
+    .dataTables_wrapper .dataTables_filter {
+        float: right;
+        text-align: right;
+        margin-bottom: 0;
+        display: none; /* Ocultamos el input predeterminado de DataTables porque usamos el nuestro */
+    }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        margin-top: 1rem;
+    }
+
+    .page-link {
+        color: #8D8D8D;
+        border: none;
+        border-radius: 6px;
+        margin: 0 2px;
+        font-weight: 500;
+    }
+
+    .page-link:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .page-item.active .page-link {
+        background-color: #005EC4;
+        color: white;
+    }
+
+    table.dataTable thead th {
+        background-color: #005EC4;
+        color: white;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+    }
+
+    table.dataTable tbody td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    /* Ajuste para los cards */
+    .card-primary.card-outline, .card-info, .card-warning, .card-success {
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<!-- Filtro de fechas -->
+<!-- Filtro de fechas (sin cambios) -->
 <div class="card card-primary card-outline">
     <div class="card-header">
         <h3 class="card-title">Filtro de fechas</h3>
@@ -33,7 +159,7 @@
     </div>
 </div>
 
-<!-- Resumen y acciones -->
+<!-- Resumen y acciones (sin cambios) -->
 <div class="row">
     <div class="col-md-6">
         <div class="card card-info">
@@ -59,7 +185,7 @@
     </div>
 </div>
 
-<!-- Gráficos -->
+<!-- Gráficos (sin cambios) -->
 <div class="row">
     <div class="col-md-12">
         <div class="card card-success">
@@ -80,13 +206,22 @@
     </div>
 </div>
 
-<!-- Tabla de CFDI -->
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Listado de CFDI</h3>
+<!-- Tabla con diseño moderno (custom-table-container) -->
+<div class="custom-table-container">
+    <div class="table-toolbar d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-medium text-muted">Listado de CFDI</h6>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="input-group" style="max-width: 300px;">
+                <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
+            </div>
+            <button class="btn-header-tertiary" id="exportCsv" data-bs-toggle="tooltip" title="Exportar a CSV">
+                <i class="bi bi-download"></i>
+            </button>
+        </div>
     </div>
-    <div class="card-body">
-        <table id="tablaCfdi" class="table table-bordered table-striped">
+    <div class="table-responsive">
+        <table id="tablaCfdi" class="table mb-0">
             <thead>
                 <tr>
                     <th>UUID</th>
@@ -101,14 +236,13 @@
                     <th>Saldo pendiente</th>
                 </tr>
             </thead>
-            <tbody>
-                <!-- Las filas se llenarán con DataTables -->
-            </tbody>
+            <tbody></tbody>
         </table>
     </div>
+    <!-- La paginación y la información de DataTables se inyectan automáticamente abajo -->
 </div>
 
-<!-- Modal de carga con logs -->
+<!-- Modal de carga (sin cambios) -->
 <div class="modal fade" id="modalCarga" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -133,7 +267,7 @@
     </div>
 </div>
 
-<!-- Datos iniciales en JSON -->
+<!-- Datos iniciales en JSON (sin cambios) -->
 {{ data_json|json_script:"datos-iniciales" }}
 {{ meses|json_script:"meses-data" }}
 {{ cantidades|json_script:"cantidades-data" }}
@@ -144,6 +278,7 @@
 {% block extra_scripts %}
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
     // Cargar datos iniciales desde los elementos JSON
@@ -221,7 +356,14 @@
             ],
             language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
             pageLength: 20,
-            order: [[1, 'desc']]
+            order: [[1, 'desc']],
+            dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+            // Ocultamos el buscador nativo para usar el nuestro
+            searching: true
+        });
+        // Conectar el input de búsqueda personalizado
+        $('#searchInput').off('keyup').on('keyup', function() {
+            dataTable.search(this.value).draw();
         });
     }
 
@@ -248,10 +390,12 @@
             ],
             language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
             pageLength: 20,
-            order: [[1, 'desc']]
+            order: [[1, 'desc']],
+            dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+            searching: true
         });
 
-        // Inicializar gráficos si hay datos
+        // Inicializar gráficos
         if (mesesIniciales.length) {
             chartCantidad = new Chart(document.getElementById('chartCantidad'), {
                 type: 'bar',
@@ -299,10 +443,37 @@
             });
         }
 
+        // Conectar búsqueda personalizada
+        $('#searchInput').on('keyup', function() {
+            dataTable.search(this.value).draw();
+        });
+
         // Filtro vía AJAX
         $('#filtroForm').on('submit', function(e) {
             e.preventDefault();
             cargarDatosFiltro();
+        });
+
+        // Exportar a CSV
+        $('#exportCsv').click(function() {
+            // Obtener datos de la tabla actual (filtrados)
+            const data = dataTable.rows({ search: 'applied' }).data().toArray();
+            const wsData = data.map(row => ({
+                'UUID': row.uuid,
+                'Fecha': row.fecha,
+                'RFC Emisor': row.rfc_emisor,
+                'RFC Receptor': row.rfc_receptor,
+                'Total': row.total,
+                'Moneda': row.moneda,
+                'Forma de pago': row.forma_pago,
+                'Método de pago': row.metodo_pago,
+                'Fecha timbrado': row.fecha_timbrado,
+                'Saldo pendiente': row.saldo_pendiente
+            }));
+            const ws = XLSX.utils.json_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'CFDI_Recibidas');
+            XLSX.writeFile(wb, `cfdi_recibidas_${new Date().toISOString().slice(0,19)}.xlsx`);
         });
 
         // Botón "Revisar peticiones"
@@ -325,8 +496,7 @@
                     $('#logContainer').html(logsHtml);
                     setTimeout(function() {
                         $('#modalCarga').modal('hide');
-                        // Recargar los datos actuales (con el filtro vigente)
-                        cargarDatosFiltro();
+                        cargarDatosFiltro(); // Recargar datos
                     }, 3000);
                 },
                 error: function() {
@@ -334,6 +504,12 @@
                     setTimeout(function() { $('#modalCarga').modal('hide'); }, 3000);
                 }
             });
+        });
+
+        // Tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function(el) {
+            new bootstrap.Tooltip(el);
         });
     });
 </script>

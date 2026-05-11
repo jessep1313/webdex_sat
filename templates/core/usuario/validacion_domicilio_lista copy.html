@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Validación de Domicilio{% endblock %}
+{% block content_title %}Validación de Domicilio Fiscal{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Listado de entidades</h3>
+    </div>
+    <div class="card-body">
+        <table id="tablaDomicilios" class="table table-bordered table-striped" style="width:100%">
+            <thead>
+                <tr>
+                    <th>RFC</th>
+                    <th>Razón Social</th>
+                    <th>Domicilio</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal de función en progreso -->
+<div class="modal fade" id="modalProgreso" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Función en desarrollo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>La validación de domicilio estará disponible próximamente.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    let dataTable;
+
+    function cargarTabla() {
+        $.ajax({
+            url: "{% url 'usuario_validacion_domicilio_data' %}",
+            method: "GET",
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(data) {
+                if (dataTable) dataTable.clear().destroy();
+                dataTable = $('#tablaDomicilios').DataTable({
+                    data: data,
+                    columns: [
+                        { data: 'rfc' },
+                        { data: 'razon_social' },
+                        {
+                            data: null,
+                            render: function(row) {
+                                let domicilio = '';
+                                if (row.calle) domicilio += row.calle;
+                                if (row.noExt) domicilio += ' ' + row.noExt;
+                                if (row.noInt) domicilio += ' Int. ' + row.noInt;
+                                if (row.colonia) domicilio += ', ' + row.colonia;
+                                if (row.codigoPostal) domicilio += ', CP ' + row.codigoPostal;
+                                if (row.ciudad) domicilio += ', ' + row.ciudad;
+                                if (row.municipio) domicilio += ', ' + row.municipio;
+                                if (row.estado) domicilio += ', ' + row.estado;
+                                return domicilio || 'Sin domicilio registrado';
+                            }
+                        },
+                        {
+                            data: null,
+                            render: function(row) {
+                                return `<button class="btn btn-sm btn-warning btn-validar" data-rfc="${row.rfc}" title="Validar domicilio">
+                                            <i class="bi bi-check-circle"></i> Validar
+                                        </button>`;
+                            }
+                        }
+                    ],
+                    language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                    pageLength: 20,
+                    order: [[0, 'asc']],
+                    columnDefs: [{ orderable: false, targets: 3 }]
+                });
+            },
+            error: function() { alert('Error al cargar datos'); }
+        });
+    }
+
+    $(document).ready(function() {
+        cargarTabla();
+
+        $('#tablaDomicilios').on('click', '.btn-validar', function() {
+            const rfc = $(this).data('rfc');
+            $('#modalProgreso').modal('show');
+            // Aquí en el futuro se agregará la lógica de validación real
+        });
+    });
+</script>
+{% endblock %}

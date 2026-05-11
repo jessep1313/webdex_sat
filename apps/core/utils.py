@@ -328,6 +328,35 @@ CREATE TABLE IF NOT EXISTS repse_documentos_historial (
     INDEX idx_rfc_tipo (rfc, tipo_documento)
 );
 
+CREATE TABLE IF NOT EXISTS configuracion_envio_correo (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  proveedor varchar(50) NOT NULL COMMENT 'smtp, sendgrid, gmail',
+  host varchar(255) DEFAULT NULL,
+  puerto int(11) DEFAULT NULL,
+  usuario varchar(255) DEFAULT NULL,
+  password varchar(255) DEFAULT NULL,
+  use_tls tinyint(1) DEFAULT 1,
+  use_ssl tinyint(1) DEFAULT 0,
+  api_key text DEFAULT NULL,
+  logo varchar(500) DEFAULT NULL,
+  activo tinyint(1) DEFAULT 1,
+  created_at datetime DEFAULT CURRENT_TIMESTAMP,
+  updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+);
+
+
+CREATE TABLE IF NOT EXISTS opinion_subidas_log (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  token varchar(64) NOT NULL,
+  rfc varchar(13) NOT NULL,
+  fecha_subida datetime DEFAULT CURRENT_TIMESTAMP,
+  archivo_pdf varchar(500) DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+
+
+
 """
     with connections[db_name].cursor() as cursor:
         for statement in sql_tables.split(';'):

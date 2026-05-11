@@ -6,20 +6,210 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<style>
+    /* Estilos modernos consistentes */
+    .custom-table-container {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        margin-top: 20px;
+    }
+
+    .table-toolbar {
+        padding: 15px 20px;
+        background: #fff;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn-header-primary {
+        background-color: white;
+        color: #005EC4 !important;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-header-primary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .btn-header-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-header-tertiary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+        color: #005EC4;
+    }
+
+    .btn-action-primary {
+        background-color: #005EC4;
+        color: white !important;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    .btn-action-primary:hover {
+        opacity: 0.8;
+        transform: translateY(-1px);
+    }
+
+    .btn-action-secondary {
+        background-color: #6c757d;
+        color: white !important;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    .btn-action-secondary:hover {
+        background-color: #5a6268;
+        transform: translateY(-1px);
+    }
+
+    .btn-action-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+    .btn-action-tertiary:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    /* DataTables overrides */
+    .dataTables_wrapper .dataTables_filter {
+        display: none;
+    }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        margin-top: 1rem;
+    }
+
+    .page-link {
+        color: #8D8D8D;
+        border: none;
+        border-radius: 6px;
+        margin: 0 2px;
+        font-weight: 500;
+    }
+
+    .page-link:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .page-item.active .page-link {
+        background-color: #005EC4;
+        color: white;
+    }
+
+    table.dataTable thead th {
+        background-color: #005EC4;
+        color: white;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+    }
+
+    table.dataTable tbody td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    .table-actions {
+        display: flex;
+        gap: 5px;
+        justify-content: flex-end;
+    }
+
+    /* Badges para estatus */
+    .badge-custom {
+        padding: 5px 10px;
+        border-radius: 30px;
+        font-weight: 500;
+        font-size: 0.75rem;
+    }
+    .badge-pendiente {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    .badge-validado {
+        background-color: #28a745;
+        color: white;
+    }
+    .badge-rechazado {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    @media (max-width: 768px) {
+        .table-responsive {
+            overflow-x: auto;
+        }
+        .table-actions {
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">eFirmas</li>
 {% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">eFirmas cargadas</h3>
-        <div class="card-tools">
-            <a href="{% url 'admin_efirma_crear' %}" class="btn btn-primary btn-sm">
-                <i class="bi bi-plus-circle"></i> Nueva eFirma
+<div class="custom-table-container">
+    <div class="table-toolbar d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-medium text-muted">eFirmas cargadas</h6>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="input-group" style="max-width: 300px;">
+                <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
+            </div>
+            <a href="{% url 'admin_efirma_crear' %}" class="btn-header-primary" data-bs-toggle="tooltip" title="Nueva eFirma">
+                <i class="bi bi-plus-lg"></i> Nueva
             </a>
+            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel">
+                <i class="bi bi-file-earmark-excel"></i>
+            </button>
         </div>
     </div>
-    <div class="card-body">
-        <table id="tablaEfirmas" class="table table-bordered table-striped">
+    <div class="table-responsive">
+        <table id="tablaEfirmas" class="table mb-0">
             <thead>
                 <tr>
                     <th>Fecha carga</th>
@@ -35,27 +225,32 @@
                     <td>{{ efirma.vigencia|date:"d/m/Y"|default:"-" }}</td>
                     <td>
                         {% if efirma.estatus == 'pendiente' %}
-                            <span class="badge bg-warning text-dark">Pendiente</span>
+                            <span class="badge-custom badge-pendiente">Pendiente</span>
                         {% elif efirma.estatus == 'validado' %}
-                            <span class="badge bg-success">Validado</span>
+                            <span class="badge-custom badge-validado">Validado</span>
                         {% else %}
-                            <span class="badge bg-danger">Rechazado</span>
+                            <span class="badge-custom badge-rechazado">Rechazado</span>
                         {% endif %}
                     </td>
-                    <td>
-                        <a href="{% url 'admin_efirma_validar' efirma.id %}" class="btn btn-info btn-sm" onclick="return confirm('¿Validar esta FIEL?')">
-                            <i class="bi bi-check-circle"></i> Validar
-                        </a>
-                        <a href="{% url 'admin_efirma_actualizar_vigencia' efirma.id %}" class="btn btn-secondary btn-sm" onclick="return confirm('¿Actualizar vigencia?')">
-                            <i class="bi bi-calendar"></i> Vigencia
-                        </a>
-                        <a href="{% url 'admin_efirma_eliminar' efirma.id %}" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este registro? Se borrarán los archivos.')">
-                            <i class="bi bi-trash"></i> Eliminar
-                        </a>
+                    <td class="text-end">
+                        <div class="table-actions">
+                            <a href="{% url 'admin_efirma_validar' efirma.id %}" class="btn-action-primary" data-bs-toggle="tooltip" title="Validar FIEL" onclick="return confirm('¿Validar esta FIEL?')">
+                                <i class="bi bi-check-circle"></i>
+                            </a>
+                            <a href="{% url 'admin_efirma_actualizar_vigencia' efirma.id %}" class="btn-action-secondary" data-bs-toggle="tooltip" title="Actualizar vigencia" onclick="return confirm('¿Actualizar vigencia?')">
+                                <i class="bi bi-calendar"></i>
+                            </a>
+                            <a href="{% url 'admin_efirma_eliminar' efirma.id %}" class="btn-action-tertiary" data-bs-toggle="tooltip" title="Eliminar" onclick="return confirm('¿Eliminar este registro? Se borrarán los archivos.')">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="4" class="text-center">No hay eFirmas cargadas.{% endfor %}
+                <tr>
+                    <td colspan="4" class="text-center">No hay eFirmas cargadas. <a href="{% url 'admin_efirma_crear' %}">Cargar primera eFirma</a></td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
@@ -65,19 +260,50 @@
 {% block extra_scripts %}
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
+    let dataTable;
+
+    function inicializarTabla() {
+        var table = document.getElementById('tablaEfirmas');
+        if (!table) return;
+        var hasRealData = table.querySelector('tbody tr td[colspan="4"]') === null;
+        if (!hasRealData) return;
+
+        dataTable = $('#tablaEfirmas').DataTable({
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 10,
+            order: [[0, 'desc']],
+            columnDefs: [{ orderable: false, targets: 3 }],
+            dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+            searching: true
+        });
+        $('#searchInput').off('keyup').on('keyup', function() {
+            dataTable.search(this.value).draw();
+        });
+    }
+
+    function exportarExcel() {
+        if (!dataTable) return;
+        const data = dataTable.rows({ search: 'applied' }).data().toArray();
+        const wsData = data.map(row => ({
+            'Fecha carga': row[0],
+            'Vigencia': row[1],
+            'Estatus': row[2]
+        }));
+        const ws = XLSX.utils.json_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'eFirmas_Empresa');
+        XLSX.writeFile(wb, `efirmas_empresa_${new Date().toISOString().slice(0,19)}.xlsx`);
+    }
+
     $(document).ready(function() {
-        var table = $('#tablaEfirmas');
-        var tbody = table.find('tbody');
-        var hasData = tbody.length && tbody[0].rows.length > 0 && !(tbody[0].rows[0].cells.length === 1 && tbody[0].rows[0].cells[0].getAttribute('colspan') === '4');
-        if (hasData) {
-            table.DataTable({
-                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-                pageLength: 10,
-                order: [[0, 'desc']],
-                columnDefs: [{ orderable: false, targets: 3 }]
-            });
-        }
+        inicializarTabla();
+        $('#btnExportarExcel').click(exportarExcel);
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function(el) {
+            new bootstrap.Tooltip(el);
+        });
     });
 </script>
 {% endblock %}

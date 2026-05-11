@@ -55,6 +55,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.media',
             ],
         },
     },
@@ -101,3 +102,6 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 # Opcional: evitar que la sesión expire al cerrar el navegador (false = la sesión dura SESSION_COOKIE_AGE aunque cierres el navegador)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+
+DOMAIN = "https://canary.venkelcargo.com/plataforma-cumplimiento/"  # ejemplo: "plataforma.ejemplo.com"

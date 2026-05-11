@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Peticiones SAT CFDI{% endblock %}
+{% block content_title %}Solicitar CFDI al SAT (Recibidas){% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">Nueva solicitud</h3>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="fechainicio" class="form-label">Fecha inicio</label>
+                {{ form.fechainicio }}
+            </div>
+            <div class="mb-3">
+                <label for="fechafinal" class="form-label">Fecha final</label>
+                {{ form.fechafinal }}
+            </div>
+            <div class="mb-3">
+                <label for="tipo" class="form-label">Tipo de solicitud</label>
+                {{ form.tipo }}
+            </div>
+
+            <button type="submit" class="btn btn-primary">Solicitar</button>
+        </form>
+    </div>
+</div>
+
+<!-- Dentro del formulario, después de los campos de fecha -->
+
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h3 class="card-title">Historial de peticiones</h3>
+    </div>
+    <div class="card-body">
+        <table id="tablaPeticiones" class="table table-bordered table-striped">
+            <!-- En la tabla del historial, agregar una columna "Tipo" -->
+            <thead>
+                <tr>
+                    <th>ID Petición</th>
+                    <th>Fecha inicio</th>
+                    <th>Fecha final</th>
+                    <th>Tipo</th>
+                    <th>Código estatus SAT</th>
+                    <th>Mensaje</th>
+                    <th>Fecha creación</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in peticiones %}
+                <tr>
+                    <td>{{ p.idpeticion }}</td>
+                    <td>{{ p.fechainicio|date:"d/m/Y" }}</td>
+                    <td>{{ p.fechafinal|date:"d/m/Y" }}</td>
+                    <td>{% if p.tipo == 'R' %}Recibidas{% else %}Emitidas{% endif %}</td>
+                    <td>{{ p.CodEstatus }}</td>
+                    <td>{{ p.Mensaje }}</td>
+                    <td>{{ p.created_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    $(document).ready(function() {
+        var table = $('#tablaPeticiones');
+        var tbody = table.find('tbody');
+        var hasData = tbody.length && tbody[0].rows.length > 0 && !(tbody[0].rows[0].cells.length === 1 && tbody[0].rows[0].cells[0].getAttribute('colspan') === '6');
+        if (hasData) {
+            table.DataTable({
+                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                pageLength: 10,
+                order: [[5, 'desc']],
+                columnDefs: [{ orderable: false, targets: 5 }]
+            });
+        }
+    });
+</script>
+{% endblock %}

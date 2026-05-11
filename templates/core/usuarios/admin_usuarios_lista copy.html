@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Usuarios de la Empresa{% endblock %}
+{% block content_title %}Usuarios de {{ request.session.empresa_nombre }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Usuarios</h3>
+        <div class="card-tools">
+            <a href="{% url 'admin_usuario_crear' %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Nuevo Usuario
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="tablaUsuarios" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Tipo</th>
+                    <th>Sucursal</th>
+                    <th>Activo</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                <tr>
+                    <td>{{ usuario.nombre }}</td>
+                    <td>{{ usuario.email }}</td>
+                    <td>{{ usuario.tipo }}</td>
+                    <td>{{ usuario.sucursal.nombre|default:"-" }}</td>
+                    <td>{% if usuario.activo %}Sí{% else %}No{% endif %}</td>
+                    <td>
+                        <a href="{% url 'admin_usuario_editar' usuario.id %}" class="btn btn-info btn-sm">
+                            <i class="bi bi-pencil"></i> Editar
+                        </a>
+                        {% if usuario.activo %}
+                        <a href="{% url 'admin_usuario_eliminar' usuario.id %}" class="btn btn-danger btn-sm" onclick="return confirm('¿Desactivar este usuario?')">
+                            <i class="bi bi-trash"></i> Desactivar
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-center">No hay usuarios registrados.{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>/* inicialización estándar */</script>
+{% endblock %}

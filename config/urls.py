@@ -20,7 +20,8 @@ from apps.core import views
 from apps.core import views as core_views
 from apps.core.views_reportes import reporte_adhoc, reporte_metadata, reporte_ejecutar, reportes_data
 
-
+from django.conf import settings
+from django.conf.urls.static import static
 
 
 urlpatterns = [
@@ -199,4 +200,11 @@ urlpatterns = [
     path('usuario/reportes/', reporte_adhoc, name='usuario_reportes'),
     path('usuario/reporte/metadata/', reporte_metadata, name='reporte_metadata'),
     path('usuario/reporte/ejecutar/', reporte_ejecutar, name='reporte_ejecutar'),
+
+     path('opinion/<str:token>/', core_views.formulario_opinion_publico, name='opinion_publica'),
+     path('constancia/<str:token>/', core_views.formulario_constancia_publico, name='constancia_publica'),
 ]
+
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

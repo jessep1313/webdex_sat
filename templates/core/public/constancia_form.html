@@ -1,0 +1,40 @@
+{% extends 'base_public.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Subir constancia de situación fiscal</h2>
+    <p>RFC: <strong>{{ rfc }}</strong></p>
+    <p>Empresa: {{ empresa_nombre }}</p>
+    <form method="post" enctype="multipart/form-data" id="constanciaForm">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="pdf" class="form-label">Archivo PDF de la constancia</label>
+            <input type="file" name="pdf" id="pdf" class="form-control" accept=".pdf" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Subir constancia</button>
+    </form>
+    <div id="resultado" class="mt-3"></div>
+</div>
+<script>
+    document.getElementById('constanciaForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(this);
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('resultado').innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+                setTimeout(() => { window.location.href = '/'; }, 2000);
+            } else {
+                document.getElementById('resultado').innerHTML = '<div class="alert alert-danger">Error: ' + data.error + '</div>';
+            }
+        })
+        .catch(err => {
+            document.getElementById('resultado').innerHTML = '<div class="alert alert-danger">Error de conexión</div>';
+        });
+    });
+</script>
+{% endblock %}

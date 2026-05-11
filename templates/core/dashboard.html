@@ -9,169 +9,350 @@
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+    /* Estilos modernos para métricas y cards (similar al diseño proporcionado) */
+    :root {
+        --primary-color: #005EC4;
+        --inactive-color: #8D8D8D;
+        --bg-body: #f4f7f9;
+    }
+
+    .metric-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        background: #fff;
+        margin-top: 20px;
+        position: relative;
+        transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
+        padding: 20px;
+    }
+    .metric-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+    }
+    .icon-box {
+        width: 48px;
+        height: 48px;
+        background-color: var(--primary-color);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        position: absolute;
+        top: -15px;
+        right: 20px;
+        box-shadow: 0 8px 15px rgba(0, 94, 196, 0.2);
+    }
+    .card-label {
+        font-size: 0.75rem;
+        color: var(--inactive-color);
+        font-weight: 500;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+    .card-value {
+        font-size: 1.5rem;
+        font-weight: 500;
+        margin: 5px 0;
+    }
+    .component-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        padding: 24px;
+        border: none;
+        margin-bottom: 20px;
+    }
+    .table thead th {
+        background-color: var(--primary-color);
+        color: white;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+    }
+    .status-pill {
+        padding: 4px 12px;
+        border-radius: 50rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+    }
+    .pill-green { background-color: #e6f4ea; color: #1e8e3e; }
+    .pill-red { background-color: #fce8e6; color: #d93025; }
+    .pill-yellow { background-color: #fef7e0; color: #b08a00; }
+    .section-header {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+    .section-title {
+        color: var(--primary-color);
+        font-size: 1.25rem;
+        font-weight: 500;
+    }
+    .section-divider {
+        border: 0;
+        height: 1px;
+        background: linear-gradient(to right, rgba(0, 94, 196, 0.2), transparent);
+        margin: 0.5rem 0 1rem 0;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<!----
-<div class="row">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-body">
-                <h5>Bienvenido, {{ request.session.user_nombre }}</h5>
-                <p>Rol: 
-                    {% if request.session.user_type == 'SA' %}
-                        Superadministrador
-                    {% elif request.session.user_type == 'A' %}
-                        Administrador
-                    {% else %}
-                        Usuario
-                    {% endif %}
-                </p>
-            </div>
-        </div>
-    </div>
-</div>
--->
-<!-- ==================== SUPERADMIN DASHBOARD ==================== -->
+<!-- ==================== SUPERADMIN DASHBOARD (sin cambios) ==================== -->
 {% if request.session.user_type == 'SA' %}
-<div class="row">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Estadísticas Globales</h3>
+<!-- SECCIÓN 1: MÉTRICAS MODERNAS -->
+<div class="section-header">
+    <h4 class="section-title">Estadísticas Globales</h4>
+    <hr class="section-divider">
+</div>
+
+<div class="row g-4">
+    <!-- Grupos -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card metric-card p-3">
+            <div class="icon-box" data-bs-toggle="tooltip" title="Total de grupos">
+                <i class="bi bi-diagram-3 fs-4"></i>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-lg-3 col-6">
-                        <div class="small-box bg-info">
-                            <div class="inner"><h3>{{ stats.grupos }}</h3><p>Grupos</p></div>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-6">
-                        <div class="small-box bg-success">
-                            <div class="inner"><h3>{{ stats.empresas }}</h3><p>Empresas</p></div>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-6">
-                        <div class="small-box bg-warning">
-                            <div class="inner"><h3>{{ stats.sucursales }}</h3><p>Sucursales</p></div>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-6">
-                        <div class="small-box bg-danger">
-                            <div class="inner"><h3>{{ stats.admins }}</h3><p>Administradores</p></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-lg-3 col-6">
-                        <div class="small-box bg-secondary">
-                            <div class="inner"><h3>{{ stats.usuarios }}</h3><p>Usuarios</p></div>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-6">
-                        <div class="small-box bg-primary">
-                            <div class="inner"><h3>{{ stats.fiel_validas }}</h3><p>Empresas con FIEL</p></div>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-6">
-                        <div class="small-box bg-dark">
-                            <div class="inner"><h3>{{ stats.sin_fiel }}</h3><p>Empresas sin FIEL</p></div>
-                        </div>
-                    </div>
-                </div>
+            <p class="card-label mb-0">Grupos</p>
+            <h4 class="card-value">{{ stats.grupos }}</h4>
+            <p class="small text-muted mb-0">Registros activos</p>
+        </div>
+    </div>
+    <!-- Empresas -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card metric-card p-3">
+            <div class="icon-box" data-bs-toggle="tooltip" title="Empresas registradas">
+                <i class="bi bi-building fs-4"></i>
             </div>
+            <p class="card-label mb-0">Empresas</p>
+            <h4 class="card-value">{{ stats.empresas }}</h4>
+            <p class="small text-muted mb-0">Total empresas</p>
+        </div>
+    </div>
+    <!-- Sucursales -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card metric-card p-3">
+            <div class="icon-box" data-bs-toggle="tooltip" title="Sucursales (todas las empresas)">
+                <i class="bi bi-shop fs-4"></i>
+            </div>
+            <p class="card-label mb-0">Sucursales</p>
+            <h4 class="card-value">{{ stats.sucursales }}</h4>
+            <p class="small text-muted mb-0">En todas las empresas</p>
+        </div>
+    </div>
+    <!-- Administradores -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card metric-card p-3">
+            <div class="icon-box" data-bs-toggle="tooltip" title="Administradores globales">
+                <i class="bi bi-person-badge fs-4"></i>
+            </div>
+            <p class="card-label mb-0">Administradores</p>
+            <h4 class="card-value">{{ stats.admins }}</h4>
+            <p class="small text-muted mb-0">Con acceso a empresas</p>
         </div>
     </div>
 </div>
-<div class="card">
-    <div class="card-header"><h3 class="card-title">Detalle por Empresa</h3></div>
-    <div class="card-body">
-        <table id="tablaEmpresas" class="table table-bordered table-striped">
-            <thead><tr><th>Nombre</th><th>RFC</th><th>Sucursales</th><th>Activa</th><th>Base de datos</th><th>FIEL</th></tr></thead>
+
+<div class="row g-4 mt-2">
+    <!-- Usuarios normales -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card metric-card p-3">
+            <div class="icon-box" data-bs-toggle="tooltip" title="Usuarios de empresa">
+                <i class="bi bi-people fs-4"></i>
+            </div>
+            <p class="card-label mb-0">Usuarios</p>
+            <h4 class="card-value">{{ stats.usuarios }}</h4>
+            <p class="small text-muted mb-0">De todas las empresas</p>
+        </div>
+    </div>
+    <!-- Empresas con FIEL -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card metric-card p-3">
+            <div class="icon-box" data-bs-toggle="tooltip" title="Empresas que han cargado FIEL válida">
+                <i class="bi bi-file-check fs-4"></i>
+            </div>
+            <p class="card-label mb-0">Con FIEL válida</p>
+            <h4 class="card-value">{{ stats.fiel_validas }}</h4>
+            <p class="small text-success mb-0">Cumplen con requisito SAT</p>
+        </div>
+    </div>
+    <!-- Empresas sin FIEL -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card metric-card p-3">
+            <div class="icon-box" data-bs-toggle="tooltip" title="Empresas sin FIEL cargada">
+                <i class="bi bi-file-x fs-4"></i>
+            </div>
+            <p class="card-label mb-0">Sin FIEL</p>
+            <h4 class="card-value">{{ stats.sin_fiel }}</h4>
+            <p class="small text-danger mb-0">Pendiente de carga</p>
+        </div>
+    </div>
+</div>
+
+<!-- SECCIÓN 2: DETALLE POR EMPRESA (TABLA MODERNA) -->
+<div class="section-header mt-5">
+    <h4 class="section-title">Detalle por Empresa</h4>
+    <hr class="section-divider">
+</div>
+
+<div class="custom-table-container">
+    <div class="table-toolbar d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-medium text-muted">Empresas registradas en el sistema</h6>
+        <div class="d-flex gap-2 align-items-center">
+
+            <button class="btn-header-tertiary" id="exportEmpresasExcel" data-bs-toggle="tooltip" title="Exportar a Excel">
+                <i class="bi bi-file-earmark-excel"></i>
+            </button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table id="tablaEmpresas" class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>RFC</th>
+                    <th>Sucursales</th>
+                    <th>Activa</th>
+                    <th>Base de datos</th>
+                    <th>FIEL</th>
+                </tr>
+            </thead>
             <tbody>
                 {% for emp in empresas_con_sucursales %}
                 <tr>
-                    <td>{{ emp.nombre }}</td><td>{{ emp.rfc }}</td><td>{{ emp.sucursales }}</td>
-                    <td>{% if emp.activo %}Sí{% else %}No{% endif %}</td>
-                    <td>{{ emp.db_name }}</td>
-                    <td>{% if emp.fiel %}<span class="badge bg-success">Cargada</span>{% else %}<span class="badge bg-danger">No cargada</span>{% endif %}</td>
+                    <td>{{ emp.nombre }}</td>
+                    <td>{{ emp.rfc }}</td>
+                    <td>{{ emp.sucursales }}</td>
+                    <td>
+                        {% if emp.activo %}
+                            <span class="status-pill pill-green">Activo</span>
+                        {% else %}
+                            <span class="status-pill pill-red">Inactivo</span>
+                        {% endif %}
+                    </td>
+                    <td><code>{{ emp.db_name }}</code></td>
+                    <td>
+                        {% if emp.fiel %}
+                            <span class="status-pill pill-green"><i class="bi bi-check-circle"></i> Cargada</span>
+                        {% else %}
+                            <span class="status-pill pill-red"><i class="bi bi-x-circle"></i> No cargada</span>
+                        {% endif %}
+                    </td>
                 </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-center">No hay empresas registradas. <a href="{% url 'empresa_crear' %}">Crear primera empresa</a></td></tr>
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+    <div class="table-pagination d-flex justify-content-between align-items-center" id="paginationControls" style="display: none;">
+        <!-- Se llenará dinámicamente si se desea, pero DataTables lo hace automático si se inicializa -->
     </div>
 </div>
 
 <!-- ==================== DASHBOARD PARA ADMINISTRADOR Y USUARIO NORMAL ==================== -->
 {% else %}
-    <!-- Tarjetas de estadísticas resumen (ya existentes) -->
     {% if stats %}
+    <!-- SECCIÓN 1: MÉTRICAS MODERNAS (Proveedores, Clientes, etc.) -->
+    <div class="section-header">
+        <h4 class="section-title">Resumen de Métricas</h4>
+        <hr class="section-divider">
+    </div>
+    <div class="row g-4">
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="icon-box" data-bs-toggle="tooltip" title="Proveedores registrados"><i class="bi bi-people"></i></div>
+                <p class="card-label">Proveedores</p>
+                <h4 class="card-value">{{ stats.proveedores }}</h4>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="icon-box" data-bs-toggle="tooltip" title="Proveedores sin CFDI"><i class="bi bi-file-earmark-text"></i></div>
+                <p class="card-label">Proveedores sin CFDI</p>
+                <h4 class="card-value">{{ stats.proveedores_sin_cfdi }}</h4>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="icon-box" data-bs-toggle="tooltip" title="Clientes con CFDI"><i class="bi bi-person-badge"></i></div>
+                <p class="card-label">Clientes</p>
+                <h4 class="card-value">{{ stats.clientes }}</h4>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="icon-box" data-bs-toggle="tooltip" title="Clientes sin CFDI"><i class="bi bi-person-x"></i></div>
+                <p class="card-label">Clientes sin CFDI</p>
+                <h4 class="card-value">{{ stats.clientes_sin_cfdi }}</h4>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 2: REPORTES EJECUTIVOS -->
+    <div class="section-header">
+        <h4 class="section-title">Reportes Ejecutivos</h4>
+        <hr class="section-divider">
+    </div>
+
+    <!-- Filtro de mes -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <label for="mesSelector" class="form-label">Seleccionar mes:</label>
+            <input type="month" id="mesSelector" class="form-control">
+        </div>
+    </div>
+
+
+    <!-- Fila 1: CFDI Mensual (ancho completo) -->
     <div class="row">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header"><h3 class="card-title">Estadísticas de la empresa</h3></div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-lg-3 col-6"><div class="small-box bg-info"><div class="inner"><h3>{{ stats.proveedores }}</h3><p>Proveedores</p></div></div></div>
-                        <div class="col-lg-3 col-6"><div class="small-box bg-warning"><div class="inner"><h3>{{ stats.proveedores_sin_cfdi }}</h3><p>Proveedores sin CFDI</p></div></div></div>
-                        <div class="col-lg-3 col-6"><div class="small-box bg-success"><div class="inner"><h3>{{ stats.clientes }}</h3><p>Clientes</p></div></div></div>
-                        <div class="col-lg-3 col-6"><div class="small-box bg-secondary"><div class="inner"><h3>{{ stats.clientes_sin_cfdi }}</h3><p>Clientes sin CFDI</p></div></div></div>
+        <div class="col-12">
+            <div class="component-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-medium m-0">CFDI Mensual</h5>
+                    <div class="d-flex gap-2">
+                        <span class="status-pill pill-green">Recibidos</span>
+                        <span class="status-pill pill-red">Emitidos</span>
                     </div>
+                </div>
+                <canvas id="chartCFDI" style="height: 300px; width: 100%;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fila 2: Opiniones + Listas Negras -->
+    <div class="row mt-4">
+        <div class="col-md-5">
+            <div class="component-card">
+                <h5 class="fw-medium mb-3">Opiniones de Cumplimiento</h5>
+                <canvas id="chartOpiniones" style="height: 250px; width: 100%;"></canvas>
+            </div>
+        </div>
+        <div class="col-md-7">
+            <div class="component-card">
+                <h5 class="fw-medium mb-3">Proveedores en Listas Negras</h5>
+                <div class="table-responsive">
+                    <table id="tablaListasNegras" class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>RFC</th>
+                                <th>Nombre</th>
+                                <th>Lista(s)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Sección de Reportes Ejecutivos (gráficos y tablas) -->
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Reportes Ejecutivos</h3>
-                </div>
-                <div class="card-body">
-                    <!-- Fila 1: CFDI Mensual + Top Proveedores -->
-                    <div class="row mb-4">
-                        <div class="col-md-12">
-                            <div class="card">
-                                <div class="card-header bg-primary text-white">CFDI Mensual</div>
-                                <div class="card-body">
-                                    <canvas id="chartCFDI" style="height: 300px;"></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <!-- Fila 2: Opiniones + Listas Negras -->
-                    <div class="row mb-4">
-                        <div class="col-md-5">
-                            <div class="card">
-                                <div class="card-header bg-warning text-white">Opiniones de Cumplimiento</div>
-                                <div class="card-body">
-                                    <canvas id="chartOpiniones" style="height: 250px;"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-7">
-                            <div class="card">
-                                <div class="card-header bg-danger text-white">Proveedores en Listas Negras</div>
-                                <div class="card-body">
-                                    <table id="tablaListasNegras" class="table table-sm table-bordered">
-                                        <thead><tr><th>RFC</th><th>Nombre</th><th>Lista(s)</th></tr></thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-         
-                </div>
-            </div>
-        </div>
-    </div>
     {% else %}
     <div class="alert alert-info">No hay datos de empresa disponibles.</div>
     {% endif %}
@@ -179,151 +360,168 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-
 <script>
 $(document).ready(function() {
-    // Solo cargar los reportes si el usuario NO es SA
-    {% if request.session.user_type != 'SA' %}
-        // 1. Cargar CFDI mensual
-        $.ajax({
-            url: "{% url 'usuario_reportes_data' %}",
-            method: "POST",
-            contentType: "application/json",
-            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-            data: JSON.stringify({ reporte: 'cfdi_mensual', filtros: {} }),
-            success: function(res) {
-                if (res.data && res.data.length) {
-                    const meses = res.data.map(d => d.mes);
-                    const recibidos = res.data.map(d => d.recibidos_monto);
-                    const emitidos = res.data.map(d => d.emitidos_monto);
-                    new Chart(document.getElementById('chartCFDI'), {
+    // Tooltips globales
+    $('[data-bs-toggle="tooltip"]').tooltip();
+
+    // ==================== SUPERADMIN ====================
+    {% if request.session.user_type == 'SA' %}
+        if ($('#tablaEmpresas').length) {
+            var tableEmpresas = $('#tablaEmpresas').DataTable({
+                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                pageLength: 10,
+                order: [[0, 'asc']],
+                columnDefs: [{ orderable: false, targets: [3,5] }],
+                dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+                searching: true
+            });
+            $('#exportEmpresasExcel').click(function() {
+                const data = tableEmpresas.rows({ search: 'applied' }).data().toArray();
+                const wsData = data.map(row => ({
+                    'Nombre': row[0],
+                    'RFC': row[1],
+                    'Sucursales': row[2],
+                    'Activa': row[3],
+                    'Base de datos': row[4],
+                    'FIEL': row[5]
+                }));
+                const ws = XLSX.utils.json_to_sheet(wsData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Empresas');
+                XLSX.writeFile(wb, `empresas_${new Date().toISOString().slice(0,19)}.xlsx`);
+            });
+        }
+    {% else %}
+        // ========== ADMINISTRADOR / USUARIO ==========
+        let chartCFDI = null;
+        let chartOpiniones = null;
+        let dataTableListas = null;
+
+        function obtenerRangoMes(mesAnio) {
+            const [year, month] = mesAnio.split('-');
+            const fechaInicio = `${year}-${month}-01`;
+            const ultimoDia = new Date(year, month, 0).getDate();
+            const fechaFin = `${year}-${month}-${ultimoDia}`;
+            return { fecha_inicio: fechaInicio, fecha_fin: fechaFin };
+        }
+
+        const hoy = new Date();
+        const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+        $('#mesSelector').val(mesActual);
+
+        function cargarReportes(mesAnio) {
+            const rango = obtenerRangoMes(mesAnio);
+            const filtros = {
+                fecha_inicio: rango.fecha_inicio,
+                fecha_fin: rango.fecha_fin,
+                rfc: ''
+            };
+
+            // 1. CFDI (barras)
+            $.ajax({
+                url: "{% url 'usuario_reportes_data' %}",
+                method: "POST",
+                contentType: "application/json",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                data: JSON.stringify({ reporte: 'cfdi_mensual', filtros: filtros }),
+                success: function(res) {
+                    let recibidos = 0, emitidos = 0;
+                    if (res.data && res.data.length) {
+                        recibidos = parseFloat(res.data[0].recibidos_monto) || 0;
+                        emitidos = parseFloat(res.data[0].emitidos_monto) || 0;
+                    }
+                    const ctx = document.getElementById('chartCFDI').getContext('2d');
+                    if (chartCFDI) chartCFDI.destroy();
+                    chartCFDI = new Chart(ctx, {
                         type: 'bar',
                         data: {
-                            labels: meses,
+                            labels: [mesAnio],
                             datasets: [
-                                { label: 'Recibidos (Monto)', data: recibidos, backgroundColor: 'rgba(54, 162, 235, 0.5)' },
-                                { label: 'Emitidos (Monto)', data: emitidos, backgroundColor: 'rgba(255, 99, 132, 0.5)' }
+                                { label: 'Recibidos', data: [recibidos], backgroundColor: '#1e8e3e', borderRadius: 8 },
+                                { label: 'Emitidos', data: [emitidos], backgroundColor: '#d93025', borderRadius: 8 }
                             ]
                         },
-                        options: { responsive: true, maintainAspectRatio: true }
-                    });
-                }
-            }
-        });
-
-        // 2. Top 10 proveedores
-        $.ajax({
-            url: "{% url 'usuario_reportes_data' %}",
-            method: "POST",
-            contentType: "application/json",
-            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-            data: JSON.stringify({ reporte: 'top_proveedores', filtros: {} }),
-            success: function(res) {
-                let tbody = $('#tablaTopProveedores tbody');
-                tbody.empty();
-                if (res.data && res.data.length) {
-                    res.data.forEach(p => {
-                        tbody.append(`<tr><td>${p.rfc}</td><td>${p.nombre}</td><td>${p.monto_total}</td></tr>`);
-                    });
-                } else {
-                    tbody.append('<tr><td colspan="3">No hay datos</td></tr>');
-                }
-            }
-        });
-
-        // 3. Opiniones
-        $.ajax({
-            url: "{% url 'usuario_reportes_data' %}",
-            method: "POST",
-            contentType: "application/json",
-            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-            data: JSON.stringify({ reporte: 'opiniones_status', filtros: {} }),
-            success: function(res) {
-                if (res.data && res.data.length) {
-                    const labels = res.data.map(d => d.estatus);
-                    const valores = res.data.map(d => d.total);
-                    new Chart(document.getElementById('chartOpiniones'), {
-                        type: 'pie',
-                        data: {
-                            labels: labels,
-                            datasets: [{ data: valores, backgroundColor: ['#28a745', '#dc3545', '#ffc107'] }]
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { position: 'top' } },
+                            scales: { y: { beginAtZero: false, title: { display: false, text: 'Monto (MXN)' } } }
                         }
                     });
                 }
-            }
-        });
+            });
 
-        // 4. Listas negras
-        $.ajax({
-            url: "{% url 'usuario_reportes_data' %}",
-            method: "POST",
-            contentType: "application/json",
-            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-            data: JSON.stringify({ reporte: 'proveedores_listas_negras', filtros: {} }),
-            success: function(res) {
-                let tbody = $('#tablaListasNegras tbody');
-                tbody.empty();
-                if (res.data && res.data.length) {
-                    res.data.forEach(p => {
-                        tbody.append(`<tr><td>${p.rfc}</td><td>${p.nombre}</td><td>${p.tipo}</td></tr>`);
-                    });
-                } else {
-                    tbody.append('<tr><td colspan="3">No hay proveedores en listas negras</td></tr>');
+            // 2. Opiniones (pastel) – ahora con filtro de mes
+            $.ajax({
+                url: "{% url 'usuario_reportes_data' %}",
+                method: "POST",
+                contentType: "application/json",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                data: JSON.stringify({ reporte: 'opiniones_status', filtros: filtros }),
+                success: function(res) {
+                    if (res.data && res.data.length) {
+                        const labels = res.data.map(d => d.estatus);
+                        const valores = res.data.map(d => d.total);
+                        const ctx = document.getElementById('chartOpiniones').getContext('2d');
+                        if (chartOpiniones) chartOpiniones.destroy();
+                        chartOpiniones = new Chart(ctx, {
+                            type: 'pie',
+                            data: {
+                                labels: labels,
+                                datasets: [{ data: valores, backgroundColor: ['#1e8e3e', '#d93025', '#ffc107'] }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } }
+                        });
+                    }
                 }
-            }
-        });
+            });
+        }
 
-        // 5. Constancias y domicilio (tabla y gráfico)
-        $.ajax({
-            url: "{% url 'usuario_reportes_data' %}",
-            method: "POST",
-            contentType: "application/json",
-            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-            data: JSON.stringify({ reporte: 'constancias_domicilio', filtros: {} }),
-            success: function(res) {
-                // Tabla
-                let tbody = $('#tablaConstancias tbody');
-                tbody.empty();
-                if (res.data && res.data.length) {
-                    res.data.forEach(item => {
-                        let constanciaHtml = item.constancia === 1 ? 'Sí' : 'No';
-                        let domicilioHtml = item.domicilio === 1 ? 'Validado' : 'No validado';
-                        tbody.append(`<tr><td>${item.rfc}</td><td>${item.nombre}</td><td>${item.tipo}</td><td>${constanciaHtml}</td><td>${domicilioHtml}</td></tr>`);
+        // Listas negras (sin filtro de fecha, se carga una vez)
+        function cargarListasNegras() {
+            $.ajax({
+                url: "{% url 'usuario_reportes_data' %}",
+                method: "POST",
+                contentType: "application/json",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                data: JSON.stringify({ reporte: 'proveedores_listas_negras', filtros: {} }),
+                success: function(res) {
+                    let $tabla = $('#tablaListasNegras');
+                    if (dataTableListas) {
+                        dataTableListas.destroy();
+                        dataTableListas = null;
+                    }
+                    $tabla.find('tbody').empty();
+                    if (res.data && res.data.length) {
+                        res.data.forEach(p => {
+                            $tabla.find('tbody').append(`<tr><td>${p.rfc}</td><td>${p.nombre}</td><td>${p.tipo}</td></tr>`);
+                        });
+                    } else {
+                        $tabla.find('tbody').append('<tr><td colspan="3">No hay proveedores en listas negras</td></tr>');
+                    }
+                    dataTableListas = $tabla.DataTable({
+                        paging: true,
+                        searching: true,
+                        ordering: true,
+                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                        pageLength: 5,
+                        destroy: true
                     });
-                    // Gráfico
-                    let conConstancia = res.data.filter(d => d.constancia === 1).length;
-                    let sinConstancia = res.data.filter(d => d.constancia !== 1).length;
-                    let conDomicilio = res.data.filter(d => d.domicilio === 1).length;
-                    let sinDomicilio = res.data.filter(d => d.domicilio !== 1).length;
-                    new Chart(document.getElementById('chartConstancias'), {
-                        type: 'bar',
-                        data: {
-                            labels: ['Constancia', 'Domicilio'],
-                            datasets: [
-                                { label: 'Completado', data: [conConstancia, conDomicilio], backgroundColor: '#28a745' },
-                                { label: 'Pendiente', data: [sinConstancia, sinDomicilio], backgroundColor: '#dc3545' }
-                            ]
-                        },
-                        options: { responsive: true, scales: { y: { beginAtZero: true } } }
-                    });
-                } else {
-                    $('#chartConstancias').hide();
-                    tbody.append('<tr><td colspan="5">No hay datos de constancias o domicilios</td></tr>');
                 }
-            }
+            });
+        }
+
+        // Inicializar
+        cargarReportes(mesActual);
+        cargarListasNegras();
+
+        $('#mesSelector').on('change', function() {
+            cargarReportes($(this).val());
         });
     {% endif %}
-
-    // DataTable para empresas (solo si existe la tabla)
-    if ($('#tablaEmpresas').length) {
-        $('#tablaEmpresas').DataTable({
-            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-            pageLength: 10
-        });
-    }
 });
 </script>
 {% endblock %}

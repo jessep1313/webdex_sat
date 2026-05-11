@@ -6,26 +6,201 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<style>
+    /* Estilos modernos para tabla y contenedores */
+    .custom-table-container {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        margin-top: 20px;
+    }
+
+    .table-toolbar {
+        padding: 15px 20px;
+        background: #fff;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn-header-primary {
+        background-color: white;
+        color: #005EC4 !important;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-header-primary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .btn-header-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-header-tertiary:hover {
+        background-color: rgba(0, 94, 196, 0.08);
+        color: #005EC4;
+    }
+
+    .btn-action-primary {
+        background-color: #005EC4;
+        color: white !important;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .btn-action-primary:hover {
+        opacity: 0.8;
+        transform: translateY(-1px);
+    }
+
+    .btn-action-tertiary {
+        background-color: transparent;
+        color: #8D8D8D;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .btn-action-tertiary:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    /* DataTables overrides */
+    .dataTables_wrapper .dataTables_filter {
+        display: none;
+    }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        margin-top: 1rem;
+    }
+
+    .page-link {
+        color: #8D8D8D;
+        border: none;
+        border-radius: 6px;
+        margin: 0 2px;
+        font-weight: 500;
+    }
+
+    .page-link:hover {
+        color: #005EC4;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    .page-item.active .page-link {
+        background-color: #005EC4;
+        color: white;
+    }
+
+    table.dataTable thead th {
+        background-color: #005EC4;
+        color: white;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+    }
+
+    table.dataTable tbody td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    .table-actions {
+        display: flex;
+        gap: 5px;
+        justify-content: flex-end;
+    }
+
+    .status-pill {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 30px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-align: center;
+    }
+
+    .pill-green {
+        background-color: rgba(40, 167, 69, 0.15);
+        color: #28a745;
+    }
+
+    .pill-red {
+        background-color: rgba(220, 53, 69, 0.15);
+        color: #dc3545;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .table-responsive {
+            overflow-x: auto;
+        }
+        .table-actions {
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Empresas</li>
 {% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Empresas</h3>
-        <div class="card-tools">
-            <a href="{% url 'empresa_crear' %}" class="btn btn-primary btn-sm">
-                <i class="bi bi-plus-circle"></i> Nueva Empresa
+<div class="custom-table-container">
+    <div class="table-toolbar d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-medium text-muted">Empresas registradas</h6>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="input-group" style="max-width: 300px;">
+                <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
+            </div>
+            <a href="{% url 'empresa_crear' %}" class="btn-header-primary" data-bs-toggle="tooltip" title="Nueva empresa">
+                <i class="bi bi-plus-lg"></i> Nueva
             </a>
+            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel">
+                <i class="bi bi-file-earmark-excel"></i>
+            </button>
         </div>
     </div>
-    <div class="card-body">
-        <table id="tablaEmpresas" class="table table-bordered table-striped" style="width:100%">
+    <div class="table-responsive">
+        <table id="tablaEmpresas" class="table mb-0">
             <thead>
                 <tr>
                     <th>Nombre</th>
                     <th>RFC</th>
                     <th>Grupo</th>
-                    <th>Base de Datos</th>
+                    <th>Base de datos</th>
                     <th>Activo</th>
                     <th>Acciones</th>
                 </tr>
@@ -36,21 +211,29 @@
                     <td>{{ empresa.nombre }}</td>
                     <td>{{ empresa.rfc }}</td>
                     <td>{{ empresa.grupo.nombre|default:"-" }}</td>
-                    <td>{{ empresa.db_name }}</td>
-                    <td>{% if empresa.activo %}Sí{% else %}No{% endif %}</td>
+                    <td><code>{{ empresa.db_name }}</code></td>
                     <td>
-                        <a href="{% url 'empresa_editar' empresa.id %}" class="btn btn-info btn-sm">
-                            <i class="bi bi-pencil"></i> Editar
-                        </a>
                         {% if empresa.activo %}
-                        <a href="{% url 'empresa_eliminar' empresa.id %}" class="btn btn-danger btn-sm" onclick="return confirm('¿Desactivar esta empresa?')">
-                            <i class="bi bi-trash"></i> Desactivar
-                        </a>
+                            <span class="status-pill pill-green">Activo</span>
+                        {% else %}
+                            <span class="status-pill pill-red">Inactivo</span>
                         {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <div class="table-actions">
+                            <a href="{% url 'empresa_editar' empresa.id %}" class="btn-action-primary" data-bs-toggle="tooltip" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% if empresa.activo %}
+                            <a href="{% url 'empresa_eliminar' empresa.id %}" class="btn-action-tertiary" data-bs-toggle="tooltip" title="Desactivar" onclick="return confirm('¿Desactivar esta empresa? Las desactivaciones son lógicas, no se elimina la base de datos.')">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="text-center">No hay empresas registradas.</td></tr>
+                <tr><td colspan="6" class="text-center">No hay empresas registradas. <a href="{% url 'empresa_crear' %}">Crear primera empresa</a></td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -61,33 +244,55 @@
 {% block extra_scripts %}
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
+    let dataTable;
+
+    function inicializarTabla() {
+        var table = document.getElementById('tablaEmpresas');
+        if (!table) return;
+        var hasRealData = table.querySelector('tbody tr td[colspan="6"]') === null;
+        if (!hasRealData) return;
+
+        dataTable = $('#tablaEmpresas').DataTable({
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 10,
+            order: [[0, 'asc']],
+            columnDefs: [{ orderable: false, targets: 5 }],  // columna Acciones no ordenable
+            dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+            searching: true
+        });
+        $('#searchInput').off('keyup').on('keyup', function() {
+            dataTable.search(this.value).draw();
+        });
+    }
+
+    function exportarExcel() {
+        if (!dataTable) return;
+        const data = dataTable.rows({ search: 'applied' }).data().toArray();
+        const wsData = data.map(row => ({
+            'Nombre': row[0],
+            'RFC': row[1],
+            'Grupo': row[2],
+            'Base de datos': row[3],
+            'Activo': row[4]
+        }));
+        const ws = XLSX.utils.json_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Empresas');
+        XLSX.writeFile(wb, `empresas_${new Date().toISOString().slice(0,19)}.xlsx`);
+    }
+
     $(document).ready(function() {
-        var table = $('#tablaEmpresas');
-        // Verificar si la tabla tiene filas de datos reales (no la fila de "No hay empresas")
-        var tbody = table.find('tbody');
-        var hasData = false;
-        if (tbody.length && tbody[0].rows.length > 0) {
-            // Si la primera fila tiene colspan, significa que es la fila de vacío
-            var firstRowCells = tbody[0].rows[0].cells;
-            if (firstRowCells.length === 1 && firstRowCells[0].getAttribute('colspan') === '6') {
-                hasData = false;
-            } else {
-                hasData = true;
-            }
-        }
-        if (hasData) {
-            // Destruir instancia previa si existe
-            if ($.fn.DataTable.isDataTable(table)) {
-                table.DataTable().destroy();
-            }
-            table.DataTable({
-                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-                pageLength: 10,
-                order: [[0, 'asc']],
-                columnDefs: [{ orderable: false, targets: 5 }]
-            });
-        }
+        inicializarTabla();
+
+        $('#btnExportarExcel').click(exportarExcel);
+
+        // Inicializar tooltips (Bootstrap)
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function(el) {
+            new bootstrap.Tooltip(el);
+        });
     });
 </script>
 {% endblock %}
