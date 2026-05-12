@@ -108,6 +108,7 @@ DOMAIN = "https://canary.venkelcargo.com/plataforma-cumplimiento/"  # ejemplo: "
 
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://canary.venkelcargo.com/plataforma-cumplimiento',
     'https://canary.venkelcargo.com',
+    'http://canary.venkelcargo.com',     # si hay redirección http
+    'https://canary.venkelcargo.com:8001', # opcional si pruebas sin proxy
 ]
