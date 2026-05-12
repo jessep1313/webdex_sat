@@ -105,3 +105,9 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 
 DOMAIN = "https://canary.venkelcargo.com/plataforma-cumplimiento/"  # ejemplo: "plataforma.ejemplo.com"
+
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://canary.venkelcargo.com/plataforma-cumplimiento',
+    'https://canary.venkelcargo.com',
+]
