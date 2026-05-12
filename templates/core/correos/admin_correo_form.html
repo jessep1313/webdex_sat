@@ -33,10 +33,7 @@
             <div class="mb-3">
                 <label for="cuerpo" class="form-label">Cuerpo del correo</label>
                 <textarea name="cuerpo" id="cuerpo" class="form-control" rows="10" required>{{ correo.cuerpo|default:'' }}</textarea>
-                <div class="mt-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertarVariable('nombre')">Insertar {{ nombre }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertarVariable('rfc')">Insertar {{ rfc }}</button>
-                </div>
+                
                 <div class="mt-2 p-2 bg-light border rounded">
                     <strong>Variables disponibles:</strong>
                     <ul class="mb-2">
