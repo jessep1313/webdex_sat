@@ -21,10 +21,17 @@
                 <label for="password" class="form-label">Contraseña</label>
                 <input type="password" name="password" id="password" class="form-control" {% if not admin %}required{% endif %}>
                 {% if admin %}<small class="text-muted">Dejar en blanco para mantener la contraseña actual.</small>{% endif %}
+                <div class="mt-2">
+                    <div class="progress" style="height: 5px;">
+                        <div id="password-strength-bar" class="progress-bar" role="progressbar" style="width: 0%; background-color: #dc3545;"></div>
+                    </div>
+                    <small id="password-strength-text" class="text-muted">Ingrese una contraseña</small>
+                </div>
             </div>
             <div class="mb-3">
                 <label for="password2" class="form-label">Confirmar contraseña</label>
                 <input type="password" name="password2" id="password2" class="form-control" {% if not admin %}required{% endif %}>
+                <div id="password-match-feedback" class="small"></div>
             </div>
             <div class="mb-3">
                 <label for="empresa" class="form-label">Empresa</label>
@@ -46,4 +53,89 @@
         </form>
     </div>
 </div>
+
+<script>
+    // Medidor de complejidad de contraseña
+    const passwordField = document.getElementById('password');
+    const password2Field = document.getElementById('password2');
+    const strengthBar = document.getElementById('password-strength-bar');
+    const strengthText = document.getElementById('password-strength-text');
+    const matchFeedback = document.getElementById('password-match-feedback');
+
+    function checkPasswordStrength(password) {
+        let score = 0;
+        if (password.length >= 8) score++;
+        if (password.match(/[a-z]/)) score++;
+        if (password.match(/[A-Z]/)) score++;
+        if (password.match(/[0-9]/)) score++;
+        if (password.match(/[^a-zA-Z0-9]/)) score++;
+        
+        let strength = '';
+        let color = '';
+        let width = 0;
+        if (score <= 2) {
+            strength = 'Débil';
+            color = '#dc3545';
+            width = 25;
+        } else if (score <= 4) {
+            strength = 'Media';
+            color = '#ffc107';
+            width = 50;
+        } else {
+            strength = 'Fuerte';
+            color = '#28a745';
+            width = 100;
+        }
+        if (password === '') {
+            strength = 'Ingrese una contraseña';
+            color = '#6c757d';
+            width = 0;
+        }
+        strengthBar.style.width = width + '%';
+        strengthBar.style.backgroundColor = color;
+        strengthText.innerHTML = strength;
+        strengthText.style.color = color;
+        return score;
+    }
+
+    function checkPasswordMatch() {
+        const pass = passwordField.value;
+        const pass2 = password2Field.value;
+        if (pass === pass2 && pass !== '') {
+            matchFeedback.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Las contraseñas coinciden.</span>';
+            return true;
+        } else if (pass2 !== '') {
+            matchFeedback.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> Las contraseñas no coinciden.</span>';
+            return false;
+        } else {
+            matchFeedback.innerHTML = '';
+            return false;
+        }
+    }
+
+    passwordField.addEventListener('input', function() {
+        checkPasswordStrength(this.value);
+        checkPasswordMatch();
+    });
+    password2Field.addEventListener('input', checkPasswordMatch);
+    
+    // Validar al enviar el formulario (opcional, para evitar envío si no cumple)
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const pass = passwordField.value;
+        if (pass && checkPasswordStrength(pass) <= 2) {
+            if (confirm('La contraseña es débil. ¿Desea continuar de todas formas?')) {
+                return true;
+            } else {
+                e.preventDefault();
+                return false;
+            }
+        }
+        if (pass && password2Field.value && pass !== password2Field.value) {
+            alert('Las contraseñas no coinciden.');
+            e.preventDefault();
+            return false;
+        }
+        return true;
+    });
+</script>
 {% endblock %}
