@@ -59,6 +59,18 @@ Su equipo de atención.{% endverbatim %}</pre>
                 <i class="bi bi-info-circle"></i> Define cómo se enviarán los correos desde esta empresa.
             </div>
 
+            <div class="mb-3">
+                <label for="proveedor" class="form-label">Proveedor</label>
+                <select name="correo_proveedor" id="proveedor" class="form-select">
+                    <option value="">Seleccione (opcional)</option>
+                    <option value="smtp" {% if config_envio.proveedor == 'smtp' %}selected{% endif %}>SMTP genérico</option>
+                    <option value="gmail" {% if config_envio.proveedor == 'gmail' %}selected{% endif %}>Gmail (SMTP)</option>
+                    <option value="sendgrid" {% if config_envio.proveedor == 'sendgrid' %}selected{% endif %}>SendGrid (API)</option>
+                </select>
+                <div class="form-text">Selecciona el método de envío. Déjalo vacío si no deseas configurarlo aún.</div>
+            </div>
+
+
 
             <script>
                 // Mostrar/ocultar campos según proveedor seleccionado
