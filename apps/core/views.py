@@ -1397,7 +1397,7 @@ def admin_correos_lista(request):
         })
     return render(request, 'core/correos/admin_correos_lista.html', {'correos': correos})
 
-
+@admin_required
 def admin_correo_crear_2(request):
     db_name = request.session.get('empresa_db_name')
     if not db_name:
@@ -1427,7 +1427,7 @@ def admin_correo_crear_2(request):
 
 
 
-
+@admin_required
 def admin_correo_editar_2(request, pk):
     db_name = request.session.get('empresa_db_name')
     if not db_name:
@@ -1456,7 +1456,7 @@ def admin_correo_editar_2(request, pk):
 
 
 
-
+@admin_required
 def admin_correo_crear_3(request):
     db_name = request.session.get('empresa_db_name')
     if not db_name:
@@ -1538,8 +1538,7 @@ def admin_correo_crear_3(request):
     return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
 
 
-
-
+@admin_required
 def admin_correo_crear(request):
     db_name = request.session.get('empresa_db_name')
     if not db_name:
@@ -1632,7 +1631,7 @@ def admin_correo_crear(request):
     return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
 
 
-
+@admin_required
 def admin_correo_editar_3(request, pk):
     db_name = request.session.get('empresa_db_name')
     if not db_name:
