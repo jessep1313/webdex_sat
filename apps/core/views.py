@@ -1538,7 +1538,7 @@ def admin_correo_crear_3(request):
     return render(request, 'core/correos/admin_correo_form.html', {'config_envio': config_envio})
 
 
-@admin_required
+
 @csrf_exempt
 def admin_correo_crear(request):
     db_name = request.session.get('empresa_db_name')
