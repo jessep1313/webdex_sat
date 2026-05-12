@@ -109,6 +109,20 @@ DOMAIN = "https://canary.venkelcargo.com/plataforma-cumplimiento/"  # ejemplo: "
 
 CSRF_TRUSTED_ORIGINS = [
     'https://canary.venkelcargo.com',
-    'http://canary.venkelcargo.com',     # si hay redirección http
-    'https://canary.venkelcargo.com:8001', # opcional si pruebas sin proxy
 ]
+
+
+# 3. Rutas correctas para cookies (¡crítico!)
+CSRF_COOKIE_PATH = '/plataforma-cumplimiento'
+SESSION_COOKIE_PATH = '/plataforma-cumplimiento'
+
+# 4. Configuración de cookies seguras y same-site (ya que usas HTTPS)
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+# 5. Cabeceras de proxy (para que Django sepa que está detrás de Nginx)
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
