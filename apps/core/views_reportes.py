@@ -9,10 +9,10 @@ from .decorators import usuario_required
 
 # Mapeo de nombres técnicos a nombres amigables para el usuario
 NOMBRES_AMIGABLES = {
-    'proveedores': '📄 Proveedores con CFDI',
-    'proveedores_sin_cfdi': '📄 Proveedores sin CFDI',
-    'clientes': '👥 Clientes con CFDI',
-    'clientes_sin_cfdi': '👥 Clientes sin CFDI',
+    'proveedores': '📄 Proveedores',
+    'proveedores_sin_cfdi': '📄 Proveedores Prospectos',
+    'clientes': '👥 Clientes',
+    'clientes_sin_cfdi': '👥 Clientes Prospectos',
     'cfdi_recibido': '📥 CFDI Recibidos',
     'cfdi_emitidos': '📤 CFDI Emitidos',
     'opiniones_historial': '📋 Historial de Opiniones',

@@ -2,6 +2,7 @@ from django.shortcuts import redirect
 
 def superadmin_required(view_func):
     def _wrapped(request, *args, **kwargs):
+        print(request.session.get('user_type'))
         if request.session.get('user_type') != 'SA':
             return redirect('login')
         return view_func(request, *args, **kwargs)

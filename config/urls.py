@@ -203,6 +203,10 @@ urlpatterns = [
 
      path('opinion/<str:token>/', core_views.formulario_opinion_publico, name='opinion_publica'),
      path('constancia/<str:token>/', core_views.formulario_constancia_publico, name='constancia_publica'),
+
+
+     path('usuario/metrics/', views.usuario_metrics_data, name='usuario_metrics_data'),
+
 ]
 
 

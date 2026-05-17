@@ -1,0 +1,530 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Generador de Reportes Ad-hoc{% endblock %}
+{% block content_title %}Business Intelligence - Reportes a medida{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    .filtro-row, .agregacion-row, .join-row {
+        background: #f8f9fa;
+        padding: 8px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }
+    .card-header h5 { margin: 0; }
+    select[multiple] { min-height: 100px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="bi bi-sliders2"></i> Configuración del reporte</h5>
+            </div>
+            <div class="card-body">
+                <!-- Tabla principal -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">📊 Tabla principal</label>
+                    <select id="tabla-select" class="form-select">
+                        <option value="">Cargando tablas...</option>
+                    </select>
+                    <div class="form-text">Selecciona la tabla base del reporte</div>
+                </div>
+
+                <!-- Columnas a mostrar -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">📋 Columnas a mostrar</label>
+                    <select id="campos-select" class="form-select" multiple size="5">
+                    </select>
+                    <div class="form-text">Ctrl+clic para seleccionar múltiples</div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🔍 Filtros</label>
+                    <div id="filtros-container"></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="agregar-filtro">
+                        <i class="bi bi-plus-circle"></i> Agregar filtro
+                    </button>
+                </div>
+
+                <!-- Agrupaciones -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">📌 Agrupar por (GROUP BY)</label>
+                    <select id="groupby-select" class="form-select" multiple size="3">
+                    </select>
+                </div>
+
+                <!-- Agregaciones -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🧮 Agregaciones (SUM, AVG, etc.)</label>
+                    <div id="agregaciones-container"></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="agregar-agregacion">
+                        <i class="bi bi-plus-circle"></i> Agregar agregación
+                    </button>
+                </div>
+
+                <!-- Combinar con otras tablas (JOIN) -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🔗 Combinar con otras tablas (JOIN)</label>
+                    <div id="joins-container"></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="agregar-join">
+                        <i class="bi bi-plus-circle"></i> Agregar unión
+                    </button>
+                </div>
+
+                <!-- Orden -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🔼 Ordenar por</label>
+                    <select id="orden-select" class="form-select" multiple size="3">
+                    </select>
+                    <div class="form-text">Selecciona columna(s). Por defecto ascendente.</div>
+                </div>
+
+                <!-- Límite -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">🔢 Límite de registros</label>
+                    <input type="number" id="limite" class="form-control" value="100" min="1" max="10000">
+                </div>
+
+                <!-- Tipo de gráfico -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">📈 Tipo de gráfico</label>
+                    <select id="tipo-grafico" class="form-select">
+                        <option value="table">📋 Solo tabla</option>
+                        <option value="bar">📊 Gráfico de barras</option>
+                        <option value="pie">🥧 Gráfico de pastel</option>
+                        <option value="line">📉 Gráfico de líneas</option>
+                    </select>
+                </div>
+
+                <button id="ejecutar-reporte" class="btn btn-primary w-100">
+                    <i class="bi bi-play-fill"></i> Ejecutar reporte
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-eye"></i> Resultado</h5>
+                <button id="exportar-xlsx" class="btn btn-sm btn-light">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="loader" style="display:none; text-align:center; padding:20px;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p>Cargando datos...</p>
+                </div>
+                <canvas id="grafico-canvas" style="display:none; max-height:400px; width:100%;"></canvas>
+                <div class="table-responsive">
+                    <table id="tabla-resultados" class="table table-bordered table-striped" style="width:100%">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="sin-datos" class="alert alert-info" style="display:none;">No hay datos para mostrar con los filtros seleccionados.</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+    let currentData = null;
+    let currentChart = null;
+    let dataTable = null;
+    let columnasDisponibles = {};   // para la tabla principal y joins (se recarga dinámicamente)
+    let currentMetadata = {};
+
+    // Funciones de cargar metadatos
+    function cargarTablas() {
+        $("#tabla-select").html('<option value="">Cargando tablas...</option>');
+        $.getJSON("{% url 'reporte_metadata' %}")
+            .done(function(metadata) {
+                currentMetadata = metadata;
+                let tablaSelect = $('#tabla-select');
+                tablaSelect.empty();
+                for (let tabla in metadata) {
+                    let nombre = metadata[tabla].comment || tabla;
+                    tablaSelect.append(`<option value="${tabla}">${nombre}</option>`);
+                }
+                if (Object.keys(metadata).length === 0) {
+                    tablaSelect.append('<option value="">No hay tablas disponibles</option>');
+                }
+                let firstTable = Object.keys(metadata)[0];
+                if (firstTable) {
+                    tablaSelect.val(firstTable).trigger('change');
+                }
+            })
+            .fail(function(xhr) {
+                console.error("Error cargando metadatos:", xhr.responseText);
+                $("#tabla-select").html('<option value="">Error al cargar tablas</option>');
+                alert("No se pudieron cargar las tablas. Revise la consola para más detalles.");
+            });
+    }
+
+    // Actualizar los selects de columnas según tabla principal y joins
+    function actualizarListaColumnas() {
+        const mainTable = $('#tabla-select').val();
+        if (!mainTable || !currentMetadata[mainTable]) return;
+
+        let allColumns = [];
+        // Tabla principal
+        currentMetadata[mainTable].columns.forEach(col => {
+            allColumns.push(`t0.${col.name}`);
+        });
+        // Joins
+        $('#joins-container .join-row').each(function(idxRow) {
+            const joinedTable = $(this).find('.join-table-select').val();
+            if (joinedTable && currentMetadata[joinedTable]) {
+                const alias = `t${idxRow+1}`;
+                currentMetadata[joinedTable].columns.forEach(col => {
+                    allColumns.push(`${alias}.${col.name}`);
+                });
+            }
+        });
+        // Llenar selects de columnas
+        $('#campos-select, #groupby-select, #orden-select').empty();
+        allColumns.forEach(col => {
+            $('#campos-select, #groupby-select, #orden-select').append(`<option value="${col}">${col}</option>`);
+        });
+        // Seleccionar primeras columnas por defecto
+        $('#campos-select').val(allColumns.slice(0, 5));
+    }
+
+    // Al cambiar tabla principal, reiniciar joins y columnas dinámicas
+    $('#tabla-select').change(function() {
+        const tabla = $(this).val();
+        $('#joins-container').empty();
+        joinCounter = 0;
+        if (tabla) {
+            actualizarListaColumnas();
+        } else {
+            $('#campos-select, #groupby-select, #orden-select').empty();
+        }
+        // Limpiar filtros y agregaciones (opcional)
+        $('#filtros-container').empty();
+        $('#agregaciones-container').empty();
+    });
+
+    // ========== FILTROS DINÁMICOS ==========
+    let filtroIndex = 0;
+    $('#agregar-filtro').click(function() {
+        const idx = filtroIndex++;
+        // Obtener todas las columnas actuales
+        let colOptions = '';
+        $('#campos-select option').each(function() {
+            colOptions += `<option value="${$(this).val()}">${$(this).val()}</option>`;
+        });
+        const filtroHtml = `
+            <div class="filtro-row row g-2" data-idx="${idx}">
+                <div class="col-4"><select class="form-select form-select-sm col-filtro">${colOptions}</select></div>
+                <div class="col-3"><select class="form-select form-select-sm op-filtro">
+                    <option value="eq">=</option>
+                    <option value="neq">≠</option>
+                    <option value="contains">contiene</option>
+                    <option value="startswith">empieza con</option>
+                    <option value="gt">></option>
+                    <option value="lt"><</option>
+                    <option value="between">entre</option>
+                </select></div>
+                <div class="col-3"><input type="text" class="form-control form-control-sm val-filtro" placeholder="Valor"></div>
+                <div class="col-2"><button class="btn btn-sm btn-danger w-100" onclick="$(this).closest('.filtro-row').remove()">X</button></div>
+            </div>
+        `;
+        $('#filtros-container').append(filtroHtml);
+    });
+
+    // ========== AGREGACIONES ==========
+    let aggIndex = 0;
+    $('#agregar-agregacion').click(function() {
+        const idx = aggIndex++;
+        let colOptions = '';
+        $('#campos-select option').each(function() {
+            colOptions += `<option value="${$(this).val()}">${$(this).val()}</option>`;
+        });
+        const aggHtml = `
+            <div class="agregacion-row row g-2" data-idx="${idx}">
+                <div class="col-5"><select class="form-select form-select-sm col-agg">${colOptions}</select></div>
+                <div class="col-4"><select class="form-select form-select-sm func-agg">
+                    <option value="SUM">SUM</option>
+                    <option value="AVG">AVG</option>
+                    <option value="COUNT">COUNT</option>
+                    <option value="MIN">MIN</option>
+                    <option value="MAX">MAX</option>
+                </select></div>
+                <div class="col-3"><button class="btn btn-sm btn-danger w-100" onclick="$(this).closest('.agregacion-row').remove()">X</button></div>
+            </div>
+        `;
+        $('#agregaciones-container').append(aggHtml);
+    });
+
+    // ========== JOINS ==========
+    let joinCounter = 0;
+    $('#agregar-join').click(function() {
+        const idx = joinCounter++;
+        // Obtener tablas disponibles (excluir la principal y las ya usadas)
+        const mainTable = $('#tabla-select').val();
+        let usedTables = [mainTable];
+        $('#joins-container .join-row').each(function() {
+            const tbl = $(this).find('.join-table-select').val();
+            if (tbl) usedTables.push(tbl);
+        });
+        let tableOptions = '<option value="">Seleccione tabla</option>';
+        for (let tbl in currentMetadata) {
+            if (!usedTables.includes(tbl)) {
+                let nombre = currentMetadata[tbl].comment || tbl;
+                tableOptions += `<option value="${tbl}">${nombre}</option>`;
+            }
+        }
+        const joinHtml = `
+            <div class="join-row row g-2 mb-2" data-idx="${idx}">
+                <div class="col-3"><select class="form-select form-select-sm join-table-select">${tableOptions}</select></div>
+                <div class="col-3"><select class="form-select form-select-sm join-left-col"><option value="">Columna izquierda</option></select></div>
+                <div class="col-3"><select class="form-select form-select-sm join-right-col"><option value="">Columna derecha</option></select></div>
+                <div class="col-2"><select class="form-select form-select-sm join-type"><option value="LEFT">LEFT JOIN</option><option value="INNER">INNER JOIN</option></select></div>
+                <div class="col-1"><button class="btn btn-sm btn-danger w-100" onclick="$(this).closest('.join-row').remove(); actualizarListaColumnas();">X</button></div>
+            </div>
+        `;
+        $('#joins-container').append(joinHtml);
+        const $row = $(`#joins-container .join-row[data-idx="${idx}"]`);
+        // Al seleccionar tabla, cargar columnas derechas
+        $row.find('.join-table-select').change(function() {
+            const selectedTable = $(this).val();
+            if (selectedTable && currentMetadata[selectedTable]) {
+                let rightColOptions = '<option value="">Seleccione columna</option>';
+                currentMetadata[selectedTable].columns.forEach(col => {
+                    rightColOptions += `<option value="${col.name}">${col.name}</option>`;
+                });
+                $row.find('.join-right-col').html(rightColOptions);
+            } else {
+                $row.find('.join-right-col').html('<option value="">Seleccione tabla primero</option>');
+            }
+            // Actualizar columnas izquierdas (todas las columnas de tablas ya incluidas)
+            actualizarColumnasIzquierdas();
+        });
+        // Al cambiar cualquier join, actualizar columnas izquierdas de todos los joins
+        function actualizarColumnasIzquierdas() {
+            // Recolectar todas las columnas disponibles de tablas ya incluidas (principal + joins anteriores)
+            let leftCols = [];
+            const main = $('#tabla-select').val();
+            if (main && currentMetadata[main]) {
+                currentMetadata[main].columns.forEach(col => { leftCols.push(`t0.${col.name}`); });
+            }
+            let joinIdx = 1;
+            $('#joins-container .join-row').each(function() {
+                const thisRow = $(this);
+                const thisTable = thisRow.find('.join-table-select').val();
+                if (thisTable && currentMetadata[thisTable]) {
+                    const alias = `t${joinIdx}`;
+                    currentMetadata[thisTable].columns.forEach(col => { leftCols.push(`${alias}.${col.name}`); });
+                }
+                joinIdx++;
+            });
+            // Quitar las columnas de la tabla que se está añadiendo (la del join actual) para evitar unión consigo misma
+            // No es necesario, pero puede ser útil.
+            // Actualizar selects left-col de todos los joins
+            $('#joins-container .join-row').each(function() {
+                const $leftSelect = $(this).find('.join-left-col');
+                const currentVal = $leftSelect.val();
+                $leftSelect.empty();
+                $leftSelect.append('<option value="">Seleccione columna</option>');
+                leftCols.forEach(col => {
+                    $leftSelect.append(`<option value="${col}">${col}</option>`);
+                });
+                if (currentVal && leftCols.includes(currentVal)) $leftSelect.val(currentVal);
+            });
+        }
+        $row.find('.join-table-select').trigger('change');
+        // Escuchar cambios en otros joins
+        $('#joins-container').on('change', '.join-table-select, .join-left-col, .join-right-col', function() {
+            actualizarColumnasIzquierdas();
+        });
+        // Finalmente actualizar lista de columnas totales
+        actualizarListaColumnas();
+    });
+
+    // Obtener configuración del reporte (incluyendo joins)
+    function getReportConfig() {
+        let filtros = [];
+        $('#filtros-container .filtro-row').each(function() {
+            let col = $(this).find('.col-filtro').val();
+            let op = $(this).find('.op-filtro').val();
+            let val = $(this).find('.val-filtro').val();
+            if (col && val) {
+                if (op === 'between') {
+                    let parts = val.split(',');
+                    if (parts.length === 2) filtros.push({col, op, val: [parts[0].trim(), parts[1].trim()]});
+                } else {
+                    filtros.push({col, op, val});
+                }
+            }
+        });
+        let agregaciones = [];
+        $('#agregaciones-container .agregacion-row').each(function() {
+            let col = $(this).find('.col-agg').val();
+            let func = $(this).find('.func-agg').val();
+            if (col && func) agregaciones.push({col, func});
+        });
+        let orden = [];
+        $('#orden-select').val().forEach(col => { orden.push({col, dir: 'ASC'}); });
+        let joins = [];
+        $('#joins-container .join-row').each(function() {
+            let table = $(this).find('.join-table-select').val();
+            let left_col = $(this).find('.join-left-col').val();
+            let right_col = $(this).find('.join-right-col').val();
+            let type = $(this).find('.join-type').val();
+            if (table && left_col && right_col) joins.push({table, left_col, right_col, type});
+        });
+        // Extraer solo el nombre de columna sin alias (para enviar al backend, el backend interpretará)
+        function cleanColName(colWithAlias) {
+            return colWithAlias.split('.').pop();
+        }
+        let campos = $('#campos-select').val().map(c => cleanColName(c));
+        let groupBy = $('#groupby-select').val().map(c => cleanColName(c));
+        let ordenClean = orden.map(o => ({col: cleanColName(o.col), dir: o.dir}));
+        let filtrosClean = filtros.map(f => ({col: cleanColName(f.col), op: f.op, val: f.val}));
+        let aggsClean = agregaciones.map(a => ({col: cleanColName(a.col), func: a.func}));
+        let joinsClean = joins.map(j => ({table: j.table, left_col: cleanColName(j.left_col), right_col: cleanColName(j.right_col), type: j.type}));
+
+        return {
+            tabla: $('#tabla-select').val(),
+            campos: campos,
+            filtros: filtrosClean,
+            group_by: groupBy,
+            agregaciones: aggsClean,
+            orden: ordenClean,
+            limite: parseInt($('#limite').val()) || 100,
+            tipo_grafico: $('#tipo-grafico').val(),
+            joins: joinsClean
+        };
+    }
+
+    // Ejecutar reporte
+    $('#ejecutar-reporte').click(function() {
+        const config = getReportConfig();
+        if (!config.tabla) { alert("Seleccione una tabla"); return; }
+        $('#loader').show();
+        $('#tabla-resultados').hide();
+        $('#grafico-canvas').hide();
+        $('#sin-datos').hide();
+        $.ajax({
+            url: "{% url 'reporte_ejecutar' %}",
+            method: "POST",
+            contentType: "application/json",
+            headers: {'X-CSRFToken': '{{ csrf_token }}'},
+            data: JSON.stringify(config),
+            success: function(res) {
+                $('#loader').hide();
+                if (res.error) { alert("Error: " + res.error); return; }
+                currentData = res;
+                if (res.data.length === 0) {
+                    $('#sin-datos').show();
+                    if (dataTable) dataTable.clear().draw();
+                    if (currentChart) currentChart.destroy();
+                    return;
+                }
+                $('#sin-datos').hide();
+                renderTabla(res.columns, res.data);
+                if (config.tipo_grafico !== 'table') {
+                    renderGrafico(res.columns, res.data, config.tipo_grafico);
+                } else {
+                    if (currentChart) currentChart.destroy();
+                    $('#grafico-canvas').hide();
+                }
+                $('#tabla-resultados').show();
+            },
+            error: function(xhr) {
+                $('#loader').hide();
+                alert("Error en el servidor: " + xhr.responseText);
+            }
+        });
+    });
+
+    function renderTabla(columns, data) {
+        if (dataTable) dataTable.clear().destroy();
+        const thead = $('#tabla-resultados thead').empty();
+        const headerRow = $('<tr>');
+        columns.forEach(col => headerRow.append(`<th>${col}</th>`));
+        thead.append(headerRow);
+        dataTable = $('#tabla-resultados').DataTable({
+            data: data,
+            columns: columns.map(() => ({defaultContent: ''})),
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+            pageLength: 20,
+            scrollX: true
+        });
+    }
+
+    function renderGrafico(columns, data, tipo) {
+        if (currentChart) currentChart.destroy();
+        const canvas = $('#grafico-canvas');
+        canvas.show();
+        const ctx = canvas[0].getContext('2d');
+        if (tipo === 'pie') {
+            const labels = data.map(row => row[0]);
+            const values = data.map(row => parseFloat(row[1]) || 0);
+            currentChart = new Chart(ctx, {
+                type: 'pie',
+                data: { labels, datasets: [{ data: values, backgroundColor: '#' + Math.floor(Math.random()*16777215).toString(16) }] }
+            });
+        } else {
+            const labels = data.map(row => row[0]);
+            const datasets = [];
+            for (let i = 1; i < columns.length; i++) {
+                datasets.push({
+                    label: columns[i],
+                    data: data.map(row => parseFloat(row[i]) || 0),
+                    borderColor: '#' + Math.floor(Math.random()*16777215).toString(16),
+                    fill: tipo === 'line' ? false : true
+                });
+            }
+            currentChart = new Chart(ctx, {
+                type: tipo,
+                data: { labels, datasets },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+        }
+    }
+
+    // Exportar a Excel
+    $('#exportar-xlsx').click(function() {
+        if (!currentData || !currentData.data || currentData.data.length === 0) {
+            alert("No hay datos para exportar");
+            return;
+        }
+        const wsData = currentData.data.map(row => {
+            let obj = {};
+            currentData.columns.forEach((col, i) => obj[col] = row[i]);
+            return obj;
+        });
+        const ws = XLSX.utils.json_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+        XLSX.writeFile(wb, `reporte_adhoc_${new Date().toISOString().slice(0,19)}.xlsx`);
+    });
+
+    // Inicialización
+    $(document).ready(function() {
+        cargarTablas();
+        // Cada vez que se modifique un join, actualizar las columnas disponibles
+        $('#joins-container').on('change', '.join-table-select, .join-left-col, .join-right-col', function() {
+            actualizarListaColumnas();
+        });
+    });
+</script>
+{% endblock %}

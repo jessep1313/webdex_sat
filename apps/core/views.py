@@ -116,19 +116,29 @@ def login_view(request):
         email = request.POST.get('email')
         password = request.POST.get('password')
 
+        print(email)
+        print(password)
         # 1. Buscar en superadmins
         try:
             user = SuperAdmin.objects.using('default').get(email=email, activo=True)
+            print(user)
             if check_password(password, user.password):
+                print('entro')
                 request.session['user_id'] = user.id
                 request.session['user_nombre'] = user.nombre
                 request.session['user_email'] = user.email
                 request.session['user_type'] = 'SA'
+                request.session.save()   # 👈 fuerza la escritura
+
+                print("Sesión guardada:", request.session.items())   # 👈 ver qué contiene
+
                 return redirect('dashboard')
             else:
+                print('no entro')
                 messages.error(request, 'Contraseña incorrecta')
                 return render(request, 'core/login.html')
         except SuperAdmin.DoesNotExist:
+            print('error superadmin')
             pass
 
         # 2. Buscar en admin
@@ -149,6 +159,7 @@ def login_view(request):
                     if empresa.grupo:
                         request.session['grupo_id'] = empresa.grupo.id
                         request.session['grupo_nombre'] = empresa.grupo.nombre
+                request.session.save()   # 👈 fuerza la escritura
                 return redirect('dashboard')
             else:
                 messages.error(request, 'Contraseña incorrecta')
@@ -177,6 +188,8 @@ def login_view(request):
                     sucursal = Sucursal.objects.using('default').get(pk=user.sucursal_id)
                     request.session['sucursal_id'] = sucursal.id
                     request.session['sucursal_nombre'] = sucursal.nombre
+                request.session.save()   # 👈 fuerza la escritura
+
                 return redirect('dashboard')
             else:
                 messages.error(request, 'Contraseña incorrecta')
@@ -266,8 +279,9 @@ def dashboard___2(request):
 
 
 
-def dashboard(request):
+def dashboard_2(request):
     user_type = request.session.get('user_type')
+    print("Dashboard session:", request.session.items())
     if not user_type:
         return redirect('login')
 
@@ -359,7 +373,219 @@ def dashboard(request):
     print('Print context:')
     print(context)
     return render(request, 'core/dashboard.html', context)
-    
+
+
+
+
+def dashboard(request):
+    user_type = request.session.get('user_type')
+    if not user_type:
+        return redirect('login')
+
+    if user_type == 'SA':
+        from empresas.models import Grupo, Empresa, Sucursal, Admin, UsuarioCentral, EFirma
+        grupos = Grupo.objects.using('default').count()
+        empresas = Empresa.objects.using('default').count()
+        sucursales = Sucursal.objects.using('default').count()
+        admins = Admin.objects.using('default').count()
+        usuarios = UsuarioCentral.objects.using('default').count()
+        efirmas_validas = EFirma.objects.using('default').filter(estatus='validado').values('empresa').distinct().count()
+        sin_fiel = empresas - efirmas_validas
+
+        empresas_con_sucursales = []
+        for empresa in Empresa.objects.using('default').all():
+            suc_count = Sucursal.objects.using('default').filter(empresa=empresa).count()
+            empresas_con_sucursales.append({
+                'nombre': empresa.nombre,
+                'sucursales': suc_count,
+                'rfc': empresa.rfc,
+                'activo': empresa.activo,
+                'db_name': empresa.db_name,
+                'fiel': EFirma.objects.using('default').filter(empresa=empresa.nombre, estatus='validado').exists()
+            })
+
+        context = {
+            'user_type': user_type,
+            'stats': {
+                'grupos': grupos,
+                'empresas': empresas,
+                'sucursales': sucursales,
+                'admins': admins,
+                'usuarios': usuarios,
+                'fiel_validas': efirmas_validas,
+                'sin_fiel': sin_fiel,
+            },
+            'empresas_con_sucursales': empresas_con_sucursales,
+        }
+        return render(request, 'core/dashboard.html', context)
+
+    else:
+        # Para A y US, usar la nueva plantilla moderna
+        db_name = request.session.get('empresa_db_name')
+        rfc_empresa = request.session.get('empresa_rfc')
+        empresa_nombre = request.session.get('empresa_nombre')
+
+        # Datos básicos que se pasan a la plantilla (el resto se cargará vía AJAX)
+        context = {
+            'user_type': user_type,
+            'empresa_nombre': empresa_nombre,
+            'rfc_empresa': rfc_empresa,
+        }
+        return render(request, 'core/dashboard_moderno.html', context)
+
+@usuario_required
+def usuario_metrics_data(request):
+    """
+    Endpoint que devuelve métricas para el dashboard moderno.
+    Parámetros GET:
+        view: 'general', 'clientes', 'proveedores'
+    Retorna JSON con:
+        total, pendientes, listas, outerData, pendData, listData, labels (según corresponda)
+    """
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    view = request.GET.get('view', 'general')
+
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+
+    with connections[db_name].cursor() as cursor:
+
+        # ------------------------------------------------------------
+        # 1. Obtener listados de RFCs por tipo de entidad (según vista)
+        # ------------------------------------------------------------
+        rfc_clientes = set()
+        rfc_proveedores = set()
+        rfc_todos = set()
+
+        if view in ('general', 'clientes'):
+            # Clientes con CFDI
+            cursor.execute("SELECT RFC FROM clientes WHERE rfc_identy = %s", [rfc_empresa])
+            for row in cursor.fetchall():
+                rfc_clientes.add(row[0])
+                rfc_todos.add(row[0])
+            # Clientes sin CFDI
+            cursor.execute("SELECT RFC FROM clientes_sin_cfdi WHERE rfc_identy = %s", [rfc_empresa])
+            for row in cursor.fetchall():
+                rfc_clientes.add(row[0])
+                rfc_todos.add(row[0])
+
+        if view in ('general', 'proveedores'):
+            # Proveedores con CFDI
+            cursor.execute("SELECT RFC FROM proveedores WHERE rfc_identy = %s", [rfc_empresa])
+            for row in cursor.fetchall():
+                rfc_proveedores.add(row[0])
+                rfc_todos.add(row[0])
+            # Proveedores sin CFDI
+            cursor.execute("SELECT RFC FROM proveedores_sin_cfdi WHERE rfc_identy = %s", [rfc_empresa])
+            for row in cursor.fetchall():
+                rfc_proveedores.add(row[0])
+                rfc_todos.add(row[0])
+
+        # ------------------------------------------------------------
+        # 2. Para cada RFC, obtener estado de opinión y constancia
+        #    (consultar en las cuatro tablas según el tipo real)
+        # ------------------------------------------------------------
+        # Creamos diccionarios: para clientes y proveedores por separado
+        opinion_ok = set()      # RFC que ya tienen opinion = 1
+        constancia_ok = set()   # RFC que ya tienen constancia = 1
+
+        # Función auxiliar para actualizar según tabla
+        def actualizar_estados(tabla, tipo_rfc_set):
+            cursor.execute(f"SELECT RFC, opinion, constancia FROM {tabla} WHERE rfc_identy = %s", [rfc_empresa])
+            for rfc, opinion, constancia in cursor.fetchall():
+                if opinion == 1:
+                    opinion_ok.add(rfc)
+                if constancia == 1:
+                    constancia_ok.add(rfc)
+
+        actualizar_estados('clientes', rfc_clientes)
+        actualizar_estados('clientes_sin_cfdi', rfc_clientes)
+        actualizar_estados('proveedores', rfc_proveedores)
+        actualizar_estados('proveedores_sin_cfdi', rfc_proveedores)
+
+        # ------------------------------------------------------------
+        # 3. Contar pendientes (sin opinión, sin constancia, sin ambos)
+        # ------------------------------------------------------------
+        sin_opinion = 0
+        sin_constancia = 0
+        sin_ambos = 0
+        for rfc in rfc_todos:
+            tiene_opinion = rfc in opinion_ok
+            tiene_constancia = rfc in constancia_ok
+            if not tiene_opinion and not tiene_constancia:
+                sin_ambos += 1
+            elif not tiene_opinion:
+                sin_opinion += 1
+            elif not tiene_constancia:
+                sin_constancia += 1
+
+        total_pendientes = len(rfc_todos) - (len(opinion_ok | constancia_ok))
+
+        # ------------------------------------------------------------
+        # 4. Contar entidades en listas negras (Artículos 69, 69-B, 69-Bis)
+        # ------------------------------------------------------------
+        listas_data = {'69': 0, '69-B': 0, '69-Bis': 0}
+        # Obtener todos los RFC en cada lista
+        for tabla, clave in [('articulo69', '69'), ('articulo69b', '69-B'), ('articulo69bis', '69-Bis')]:
+            cursor.execute(f"SELECT rfc FROM {tabla}")
+            for row in cursor.fetchall():
+                if row[0] in rfc_todos:
+                    listas_data[clave] += 1
+        total_listas = sum(listas_data.values())
+
+        # ------------------------------------------------------------
+        # 5. Construir respuesta según la vista
+        # ------------------------------------------------------------
+        if view == 'general':
+            total_clientes = len(rfc_clientes)
+            total_proveedores = len(rfc_proveedores)
+            total_entidades = total_clientes + total_proveedores
+
+            # Desglose pendData: [sin_constancia, sin_opinion, sin_ambos]
+            pend_data = [sin_constancia, sin_opinion, sin_ambos]
+            # Desglose listData: [art69, art69b, art69bis]
+            list_data = [listas_data['69'], listas_data['69-B'], listas_data['69-Bis']]
+
+            return JsonResponse({
+                'total': total_entidades,
+                'pendientes': total_pendientes,
+                'listas': total_listas,
+                'outerData': [total_clientes, total_proveedores],
+                'pendData': pend_data,
+                'listData': list_data,
+                'labels': ['Clientes', 'Proveedores', 'Pendientes', 'Listas Negras']
+            })
+
+        elif view == 'clientes':
+            total_entidades = len(rfc_clientes)
+            # Para vista específica, además necesitamos 'sanos' = total - pendientes - listas
+            sanos = total_entidades - total_pendientes - total_listas
+
+            return JsonResponse({
+                'total': total_entidades,
+                'pendientes': total_pendientes,
+                'listas': total_listas,
+                'sanos': sanos,
+                'pendData': [sin_constancia, sin_opinion, sin_ambos],
+                'listData': [listas_data['69'], listas_data['69-B'], listas_data['69-Bis']]
+            })
+
+        elif view == 'proveedores':
+            total_entidades = len(rfc_proveedores)
+            sanos = total_entidades - total_pendientes - total_listas
+
+            return JsonResponse({
+                'total': total_entidades,
+                'pendientes': total_pendientes,
+                'listas': total_listas,
+                'sanos': sanos,
+                'pendData': [sin_constancia, sin_opinion, sin_ambos],
+                'listData': [listas_data['69'], listas_data['69-B'], listas_data['69-Bis']]
+            })
+
+        else:
+            return JsonResponse({'error': 'Vista no válida'}, status=400) 
 
 def dashboard_superadmin(request):
     if request.session.get('user_type') != 'superadmin':
