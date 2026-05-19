@@ -222,7 +222,7 @@
                 {% for efirma in efirmas %}
                 <tr>
                     <td>{{ efirma.fecha_carga|date:"d/m/Y H:i" }}</td>
-                    <td>{{ efirma.vigencia|date:"d/m/Y"|default:"-" }}</td>
+                    <td>{{ efirma.vigencia|default:"-" }}</td>
                     <td>
                         {% if efirma.estatus == 'pendiente' %}
                             <span class="badge-custom badge-pendiente">Pendiente</span>

@@ -141,6 +141,7 @@ class EFirma(models.Model):
     estatus = models.CharField(max_length=20, default='pendiente')
     grupo = models.CharField(max_length=100, blank=True, null=True)
     empresa = models.CharField(max_length=100, blank=True, null=True)
+    vigencia = models.DateField(null=True, blank=True)  # Campo existente
 
     class Meta:
         managed = False
@@ -191,26 +192,5 @@ class Servicio(models.Model):
         return self.nombre
 
 
-class EFirma(models.Model):
-    ESTATUS_CHOICES = [
-        ('pendiente', 'Pendiente'),
-        ('validado', 'Validado'),
-        ('rechazado', 'Rechazado'),
-    ]
 
-    archivo_cer = models.CharField(max_length=100)
-    archivo_key = models.CharField(max_length=100)
-    password = models.CharField(max_length=255)
-    fecha_carga = models.DateTimeField(auto_now_add=True)
-    estatus = models.CharField(max_length=20, choices=ESTATUS_CHOICES, default='pendiente')
-    grupo = models.CharField(max_length=100, blank=True, null=True)
-    empresa = models.CharField(max_length=100, blank=True, null=True)
-    vigencia = models.DateField(null=True, blank=True)  # Campo existente
-
-    class Meta:
-        managed = False
-        db_table = 'efirmas'
-
-    def __str__(self):
-        return f"EFirma {self.id} - {self.empresa} - {self.estatus}"
 
