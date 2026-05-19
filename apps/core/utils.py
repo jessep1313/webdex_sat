@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS proveedores (
     constancia INT DEFAULT 0,
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
-    Estatus VARCHAR(255) NULL
+    Estatus VARCHAR(255) NULL,
+    domicilio_validado varchar(20) DEFAULT 'Pendiente'
 
 );
 
@@ -93,7 +94,9 @@ CREATE TABLE IF NOT EXISTS proveedores_historico (
     constancia INT DEFAULT 0,
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
-    Estatus VARCHAR(255) NULL
+    Estatus VARCHAR(255) NULL,
+    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+
 
 );
 
@@ -127,7 +130,9 @@ CREATE TABLE IF NOT EXISTS proveedores_sin_cfdi (
     constancia INT DEFAULT 0,
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
-    Estatus VARCHAR(255) NULL
+    Estatus VARCHAR(255) NULL,
+    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+
 );
 
 
@@ -161,7 +166,9 @@ CREATE TABLE IF NOT EXISTS clientes_sin_cfdi (
     constancia INT DEFAULT 0,
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
-    Estatus VARCHAR(255) NULL
+    Estatus VARCHAR(255) NULL,
+    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+
 );
 
 -- Tabla configuracion_correos
@@ -220,7 +227,9 @@ CREATE TABLE IF NOT EXISTS clientes (
     constancia INT DEFAULT 0,
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
-    Estatus VARCHAR(255) NULL
+    Estatus VARCHAR(255) NULL,
+    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+
 );
 
 -- Tabla cfdi_emitidos

@@ -5660,40 +5660,6 @@ def usuario_validacion_domicilio_data(request):
     if not db_name or not rfc_empresa:
         return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
 
-    with connections[db_name].cursor() as cursor:
-        # Proveedores
-        cursor.execute("""
-            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad, 'proveedor' as tipo
-            FROM proveedores
-            WHERE rfc_identy = %s
-        """, [rfc_empresa])
-        rows = list(cursor.fetchall())
-
-        # Proveedores sin CFDI
-        cursor.execute("""
-            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad, 'proveedor_sin_cfdi' as tipo
-            FROM proveedores_sin_cfdi
-            WHERE rfc_identy = %s
-        """, [rfc_empresa])
-        rows.extend(cursor.fetchall())
-
-        # Clientes
-        cursor.execute("""
-            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad, 'cliente' as tipo
-            FROM clientes
-            WHERE rfc_identy = %s
-        """, [rfc_empresa])
-        rows.extend(cursor.fetchall())
-
-        # Clientes sin CFDI
-        cursor.execute("""
-            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal, municipio, estado, ciudad, 'cliente_sin_cfdi' as tipo
-            FROM clientes_sin_cfdi
-            WHERE rfc_identy = %s
-        """, [rfc_empresa])
-        rows.extend(cursor.fetchall())
-
-    # Mapeo de tipo interno a nombre amigable
     tipo_nombres = {
         'proveedor': 'Proveedor',
         'proveedor_sin_cfdi': 'Proveedor sin CFDI',
@@ -5702,24 +5668,182 @@ def usuario_validacion_domicilio_data(request):
     }
 
     data = []
-    for row in rows:
-        tipo = row[10]  # índice del campo tipo
-        tipo_nombre = tipo_nombres.get(tipo, tipo)
-        data.append({
-            'rfc': row[0] or '',
-            'razon_social': row[1] or '',
-            'calle': row[2] or '',
-            'noExt': row[3] or '',
-            'noInt': row[4] or '',
-            'colonia': row[5] or '',
-            'codigoPostal': row[6] or '',
-            'municipio': row[7] or '',
-            'estado': row[8] or '',
-            'ciudad': row[9] or '',
-            'tipo': tipo,
-            'tipo_nombre': tipo_nombre,
-        })
+    with connections[db_name].cursor() as cursor:
+        # Proveedores
+        cursor.execute("""
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal,
+                   municipio, estado, ciudad,
+                   'proveedor' as tipo_interno,
+                   COALESCE(domicilio_validado, 'Pendiente') as estado_validacion
+            FROM proveedores
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            item = dict(zip(columns, row))
+            item['rfc'] = item.pop('RFC')  # Renombra la clave 'RFC' a 'rfc' si es necesario
+
+            item['tipo_nombre'] = tipo_nombres.get(item['tipo_interno'], item['tipo_interno'])
+            data.append(item)
+
+        # Proveedores sin CFDI
+        cursor.execute("""
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal,
+                   municipio, estado, ciudad,
+                   'proveedor_sin_cfdi' as tipo_interno,
+                   COALESCE(domicilio_validado, 'Pendiente') as estado_validacion
+            FROM proveedores_sin_cfdi
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            item = dict(zip(columns, row))
+            item['rfc'] = item.pop('RFC')  # Renombra la clave 'RFC' a 'rfc' si es necesario
+
+            item['tipo_nombre'] = tipo_nombres.get(item['tipo_interno'], item['tipo_interno'])
+            data.append(item)
+
+        # Clientes
+        cursor.execute("""
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal,
+                   municipio, estado, ciudad,
+                   'cliente' as tipo_interno,
+                   COALESCE(domicilio_validado, 'Pendiente') as estado_validacion
+            FROM clientes
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            item = dict(zip(columns, row))
+            item['rfc'] = item.pop('RFC')  # Renombra la clave 'RFC' a 'rfc' si es necesario
+
+            item['tipo_nombre'] = tipo_nombres.get(item['tipo_interno'], item['tipo_interno'])
+            data.append(item)
+
+        # Clientes sin CFDI
+        cursor.execute("""
+            SELECT RFC, RazonSocial, calle, noExt, noInt, colonia, codigoPostal,
+                   municipio, estado, ciudad,
+                   'cliente_sin_cfdi' as tipo_interno,
+                   COALESCE(domicilio_validado, 'Pendiente') as estado_validacion
+            FROM clientes_sin_cfdi
+            WHERE rfc_identy = %s
+        """, [rfc_empresa])
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            item = dict(zip(columns, row))
+            item['rfc'] = item.pop('RFC')  # Renombra la clave 'RFC' a 'rfc' si es necesario
+
+            item['tipo_nombre'] = tipo_nombres.get(item['tipo_interno'], item['tipo_interno'])
+            data.append(item)
+
     return JsonResponse(data, safe=False)
+
+
+import requests
+import json
+import logging
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .decorators import usuario_required
+
+logger = logging.getLogger(__name__)
+
+@usuario_required
+@csrf_exempt
+def validar_domicilio(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON inválido'}, status=400)
+    
+    rfc = data.get('rfc')
+    tipo = data.get('tipo')          # "proveedor", "cliente", etc.
+    local_data = data.get('datos')
+    if not rfc or not tipo or not local_data:
+        return JsonResponse({'error': 'Faltan parámetros'}, status=400)
+    
+    db_name = request.session.get('empresa_db_name')
+    rfc_empresa = request.session.get('empresa_rfc')
+    if not db_name or not rfc_empresa:
+        return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
+    
+    # Mapeo tipo -> tabla
+    tabla_map = {
+        'proveedor': 'proveedores',
+        'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+        'cliente': 'clientes',
+        'cliente_sin_cfdi': 'clientes_sin_cfdi'
+    }
+    tabla = tabla_map.get(tipo)
+    if not tabla:
+        return JsonResponse({'error': 'Tipo de entidad inválido'}, status=400)
+    
+    # Llamada a la API externa (como antes)
+    api_url = 'https://ep-plataforma-cumplimiento-727717516813.us-central1.run.app'
+    headers = {'API-KEY': 'PRUEBA_PLTF_CMPL_2026_SECRET'}
+    params = {'limite': 2000}
+    try:
+        response = requests.get(api_url, headers=headers, params=params, timeout=15)
+        response.raise_for_status()
+        resultados = response.json()
+        # Normalizar respuesta (como en la versión anterior)
+        if isinstance(resultados, dict):
+            registros = resultados.get('data') or resultados.get('results') or resultados.get('items') or [resultados]
+        else:
+            registros = resultados
+        api_record = None
+        for item in registros:
+            if isinstance(item, dict) and item.get('rfc') == rfc:
+                api_record = item
+                break
+        if not api_record:
+            return JsonResponse({'error': f'RFC {rfc} no encontrado en el servicio externo'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': f'Error consultando API: {str(e)}'}, status=500)
+    
+    # Comparar campos (igual que antes)
+    diferencias = []
+    mapeo = {
+        'calle': 'calle',
+        'noExt': 'num_exterior',
+        'noInt': 'num_interior',
+        'colonia': 'colonia',
+        'codigoPostal': 'cp',
+        'municipio': 'delegacion',
+        'estado': 'estado',
+        'ciudad': 'ciudad'
+    }
+    for campo_local, campo_api in mapeo.items():
+        valor_local = (local_data.get(campo_local) or '').strip().upper()
+        valor_api = (api_record.get(campo_api) or '').strip().upper()
+        if valor_local != valor_api:
+            diferencias.append(f"{campo_local}: local='{valor_local}', API='{valor_api}'")
+    
+    estado = 'Incorrecto' if diferencias else 'Correcto'
+    mensaje = '; '.join(diferencias) if diferencias else 'Todos los campos coinciden'
+    
+    # Guardar el estado en la base de datos
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute(f"""
+                UPDATE {tabla}
+                SET domicilio_validado = %s
+                WHERE RFC = %s AND rfc_identy = %s
+            """, [estado, rfc, rfc_empresa])
+    except Exception as e:
+        # Si la columna no existe, registra el error pero no impide la respuesta
+        logger.exception(f"Error guardando validación: {e}")
+    
+    return JsonResponse({
+        'status': estado,
+        'message': mensaje,
+        'diferencias': diferencias,
+        'api_data': api_record
+    })
 
 
 import threading

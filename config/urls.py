@@ -156,6 +156,7 @@ urlpatterns = [
     # Validación de domicilio
     path('usuario/validacion-domicilio/', core_views.usuario_validacion_domicilio, name='usuario_validacion_domicilio'),
     path('usuario/validacion-domicilio/data/', core_views.usuario_validacion_domicilio_data, name='usuario_validacion_domicilio_data'),
+    path('usuario/validacion-domicilio/validar/', core_views.validar_domicilio, name='validar_domicilio'),
 
     path('usuario/articulo69/', core_views.usuario_articulo69, name='usuario_articulo69'),
     path('usuario/articulo69b/', core_views.usuario_articulo69b, name='usuario_articulo69b'),

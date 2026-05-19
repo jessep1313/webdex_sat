@@ -147,6 +147,8 @@
                     <th>Razón Social</th>
                      <th>Tipo</th>
                     <th>Domicilio</th>
+                    <th>Validación</th>   <!-- nueva columna -->
+
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -209,6 +211,7 @@
                                 return domicilio || 'Sin domicilio registrado';
                             }
                         },
+                        { data: 'estado_validacion' },   // nueva columna, mostrará el texto del estado
                         {
                             data: null,
                             render: function(row) {
@@ -225,7 +228,7 @@
                     language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
                     pageLength: 20,
                     order: [[0, 'asc']],
-                    columnDefs: [{ orderable: false, targets: 3 }],
+                    columnDefs: [{ orderable: false, targets: [4, 5] }],
                     dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
                     searching: true
                 });
@@ -242,9 +245,70 @@
         cargarTabla();
 
         $('#tablaDomicilios').on('click', '.btn-validar', function() {
-            const rfc = $(this).data('rfc');
-            $('#modalProgreso').modal('show');
-            // Aquí en el futuro se agregará la lógica de validación real
+            const $btn = $(this);
+            const $row = $btn.closest('tr');
+            const rowData = dataTable.row($row).data(); // obtener datos completos de la fila
+            const rfc = rowData.rfc;
+            const datosLocal = {
+                calle: rowData.calle,
+                noExt: rowData.noExt,
+                noInt: rowData.noInt,
+                colonia: rowData.colonia,
+                codigoPostal: rowData.codigoPostal,
+                municipio: rowData.municipio,
+                estado: rowData.estado,
+                ciudad: rowData.ciudad
+            };
+            
+            // Mostrar spinner o deshabilitar botón temporalmente
+            $btn.prop('disabled', true).html('<i class="bi bi-arrow-repeat spin"></i>');
+            
+            $.ajax({
+                url: "{% url 'validar_domicilio' %}",
+                method: "POST",
+                contentType: "application/json",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                data: JSON.stringify({
+                    rfc: rowData.rfc,
+                    tipo: rowData.tipo_interno,   // usar el nuevo campo
+                    datos: datosLocal
+                }),
+                success: function(resp) {
+                    if (resp.status) {
+                        // Actualizar la celda de validación (columna índice 4)
+                        const $estadoCell = $row.find('td:eq(4)');
+                        let badgeClass = '';
+                        if (resp.status === 'Correcto') {
+                            badgeClass = 'badge bg-success';
+                        } else if (resp.status === 'Incorrecto') {
+                            badgeClass = 'badge bg-danger';
+                        } else {
+                            badgeClass = 'badge bg-warning';
+                        }
+                        $estadoCell.html(`<span class="${badgeClass}">${resp.status}</span>`);
+                        // También podrías mostrar un tooltip con los detalles de diferencias
+                        if (resp.status === 'Incorrecto') {
+                            $estadoCell.attr('title', resp.message).tooltip({ placement: 'top' });
+                        } else {
+                            $estadoCell.attr('title', 'Todos los campos coinciden').tooltip();
+                        }
+                        // Opcional: actualizar los datos de la fila en DataTable para persistencia
+                        rowData.estado_validacion = resp.status;
+                        dataTable.row($row).data(rowData);
+                    } else {
+                        alert('Error: ' + (resp.error || 'No se pudo completar la validación'));
+                    }
+                },
+                error: function(xhr) {
+                    let msg = xhr.responseJSON?.error || 'Error de conexión';
+                    alert('Error: ' + msg);
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).html('<i class="bi bi-check-circle"></i>');
+                    // Reiniciar tooltips
+                    $('[data-bs-toggle="tooltip"]').tooltip();
+                }
+            });
         });
 
         // Exportar a Excel (datos visibles actualmente)
