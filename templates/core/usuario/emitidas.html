@@ -471,7 +471,7 @@
         });
 
         // Botón "Revisar peticiones"
-        $('#btnRevisarPeticiones').click(function() {
+        $('#btnRevisarPeticiones_2').click(function() {
             $('#modalCarga').modal('show');
             $('#logContainer').html('<p>Iniciando procesamiento...</p>');
             $.ajax({
@@ -499,6 +499,66 @@
                 }
             });
         });
+
+
+        // ========== BOTÓN ASÍNCRONO (NUEVO) ==========
+        $('#btnRevisarPeticiones').click(function() {
+            const modal = $('#modalCarga');
+            const logContainer = $('#logContainer');
+            logContainer.html('<p>🚀 Iniciando proceso...</p>');
+            modal.modal('show');
+
+            $.ajax({
+                url: "{% url 'usuario_revisar_peticiones_emitidas_async' %}",
+                method: "POST",
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                success: function(resp) {
+                    if (resp.task_id) {
+                        const taskId = resp.task_id;
+                        let interval = setInterval(function() {
+                            $.ajax({
+                                url: "{% url 'usuario_revisar_peticiones_emitidas_status' 'xxx' %}".replace('xxx', taskId),
+                                method: "GET",
+                                success: function(statusResp) {
+                                    let logsHtml = '';
+                                    if (statusResp.logs && statusResp.logs.length) {
+                                        statusResp.logs.forEach(function(msg) { logsHtml += '<p>' + msg + '</p>'; });
+                                    }
+                                    logContainer.html(logsHtml);
+                                    if (statusResp.finished) {
+                                        clearInterval(interval);
+                                        if (statusResp.success) {
+                                            logContainer.append('<p class="text-success">✅ Proceso completado exitosamente.</p>');
+                                            setTimeout(function() {
+                                                modal.modal('hide');
+                                                cargarDatosFiltro(); // recargar tabla y gráficos
+                                            }, 2000);
+                                        } else {
+                                            logContainer.append('<p class="text-danger">❌ Error: ' + (statusResp.error || 'Desconocido') + '</p>');
+                                            setTimeout(function() { modal.modal('hide'); }, 5000);
+                                        }
+                                    }
+                                },
+                                error: function() {
+                                    clearInterval(interval);
+                                    logContainer.html('<p class="text-danger">Error al consultar estado de la tarea.</p>');
+                                }
+                            });
+                        }, 1500);
+                    } else {
+                        logContainer.html('<p class="text-danger">Error: No se pudo iniciar la tarea.</p>');
+                        setTimeout(function() { modal.modal('hide'); }, 3000);
+                    }
+                },
+                error: function() {
+                    logContainer.html('<p class="text-danger">Error de conexión al servidor.</p>');
+                    setTimeout(function() { modal.modal('hide'); }, 3000);
+                }
+            });
+        });
+
+
+
 
         // Tooltips
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
