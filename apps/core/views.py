@@ -5307,12 +5307,23 @@ def obtener_opinion_sat(rfc, download_dir, logs):
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    
+    options.add_argument("--disable-setuid-sandbox")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--user-data-dir=/tmp/chrome-user-data")  # Evita conflictos de perfiles
+    options.add_argument("--disk-cache-dir=/tmp/chrome-cache")
+    options.add_argument("--log-level=3")  # Reduce logs
+    options.add_argument("--silent")
+
     options.add_experimental_option('prefs', {
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "plugins.always_open_pdf_externally": True
     })
+
+
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     logs.append("✅ Navegador iniciado")
