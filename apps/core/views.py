@@ -5427,25 +5427,46 @@ def obtener_opinion_sat(rfc, download_dir, logs):
         driver.quit()
         return None
 
-def run_opinion_task(task_id, rfc, tipo, db_name, rfc_empresa):
-    """Ejecuta el proceso en segundo plano y actualiza el diccionario de estado."""
-    logs = []
-    tasks_status[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
-    try:
-        logs.append("🚀 Iniciando el proceso de obtención de opinión del SAT...")
-        tasks_status[task_id]['logs'] = logs
+# ========== TAREA ASÍNCRONA PARA OPINIONES (con BD) ==========
 
+def run_opinion_task(task_id, rfc, tipo_entidad, db_name, rfc_empresa, empresa_nombre):
+    """
+    Ejecuta la obtención de opinión del SAT en segundo plano.
+    """
+    logs = []
+    try:
+        from empresas.models import EFirma
+        from selenium import webdriver
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from webdriver_manager.chrome import ChromeDriverManager
+        import time, re, shutil, os, base64
+        from datetime import datetime
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+        from django.conf import settings
+
+        actualizar_tarea(task_id, logs=logs, estado='en_proceso')
+        logs.append("🚀 Iniciando proceso de obtención de opinión del SAT...")
+        actualizar_tarea(task_id, logs=logs)
+
+        # Crear directorio temporal
         temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_opinions', rfc)
         os.makedirs(temp_dir, exist_ok=True)
         logs.append("📁 Directorio temporal creado")
+        actualizar_tarea(task_id, logs=logs)
 
-        resultado = obtener_opinion_sat(rfc, temp_dir, logs)
-        tasks_status[task_id]['logs'] = logs
+        # Llamar a la función que obtiene la opinión (puedes usar la que ya tienes)
+        # Asumo que existe la función obtener_opinion_sat que retorna un dict con 'pdf_path', 'fecha', 'resultado' o 'status'
+        # Si tu función se llama diferente, ajústala.
+        from .views import obtener_opinion_sat  # o la ruta donde esté
+        resultado = obtener_opinion_sat(rfc, temp_dir, logs)  # le pasamos logs para que los vaya llenando
 
         if resultado is None:
-            tasks_status[task_id]['error'] = 'No se pudo completar la operación'
-            tasks_status[task_id]['finished'] = True
-            return
+            raise Exception("No se pudo completar la operación")
 
         tabla_map = {
             'proveedor': 'proveedores',
@@ -5453,14 +5474,13 @@ def run_opinion_task(task_id, rfc, tipo, db_name, rfc_empresa):
             'cliente': 'clientes',
             'cliente_sin_cfdi': 'clientes_sin_cfdi'
         }
-        tabla = tabla_map.get(tipo)
+        tabla = tabla_map.get(tipo_entidad)
         if not tabla:
-            tasks_status[task_id]['error'] = 'Tipo de entidad inválido'
-            tasks_status[task_id]['finished'] = True
-            return
+            raise Exception(f"Tipo de entidad inválido: {tipo_entidad}")
 
         with connections[db_name].cursor() as cursor:
             if 'pdf_path' in resultado:
+                # Guardar PDF
                 año = resultado['fecha'].year
                 mes = resultado['fecha'].month
                 ruta_destino = os.path.join('opinion', rfc, str(año), f"{mes:02d}")
@@ -5470,12 +5490,15 @@ def run_opinion_task(task_id, rfc, tipo, db_name, rfc_empresa):
                     ContentFile(open(resultado['pdf_path'], 'rb').read())
                 )
                 logs.append(f"📁 PDF guardado en: {destino}")
+                actualizar_tarea(task_id, logs=logs)
 
+                # Insertar historial
                 cursor.execute("""
                     INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
                     VALUES (%s, %s, %s, %s, %s)
-                """, [rfc, tipo, destino, resultado['resultado'], resultado['fecha']])
+                """, [rfc, tipo_entidad, destino, resultado['resultado'], resultado['fecha']])
 
+                # Actualizar tabla principal
                 sql = f"""
                     UPDATE {tabla}
                     SET Estatus = %s, fecha_opinion = %s, opinion = 1
@@ -5483,8 +5506,12 @@ def run_opinion_task(task_id, rfc, tipo, db_name, rfc_empresa):
                 """
                 cursor.execute(sql, [resultado['resultado'], resultado['fecha'], rfc, rfc_empresa])
                 logs.append(f"✅ Registro actualizado con PDF (resultado: {resultado['resultado']})")
+                actualizar_tarea(task_id, logs=logs)
+
+                # Eliminar archivo temporal
                 os.remove(resultado['pdf_path'])
             else:
+                # Sin PDF (solo estatus)
                 fecha_actual = resultado['fecha']
                 sql = f"""
                     UPDATE {tabla}
@@ -5493,19 +5520,24 @@ def run_opinion_task(task_id, rfc, tipo, db_name, rfc_empresa):
                 """
                 cursor.execute(sql, [resultado['status'], fecha_actual, rfc, rfc_empresa])
                 logs.append(f"✅ Registro actualizado sin PDF (estatus: {resultado['status']})")
+                actualizar_tarea(task_id, logs=logs)
+
                 cursor.execute("""
                     INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
                     VALUES (%s, %s, %s, %s, %s)
-                """, [rfc, tipo, '', resultado['status'], fecha_actual])
+                """, [rfc, tipo_entidad, '', resultado['status'], fecha_actual])
 
-        tasks_status[task_id]['success'] = True
+        actualizar_tarea(task_id, logs=logs, estado='completado', success=True)
         logs.append("🎉 Proceso terminado correctamente")
+        actualizar_tarea(task_id, logs=logs)
+
     except Exception as e:
-        logs.append(f"❌ Error: {str(e)}")
-        tasks_status[task_id]['error'] = str(e)
-    finally:
-        tasks_status[task_id]['finished'] = True
-        tasks_status[task_id]['logs'] = logs
+        error_msg = str(e)
+        logs.append(f"❌ Error: {error_msg}")
+        actualizar_tarea(task_id, logs=logs, estado='error', success=False, error=error_msg)
+        # Opcional: puedes imprimir el traceback en los logs del servidor
+        import traceback
+        traceback.print_exc()
 
 @usuario_required
 @csrf_exempt
@@ -5514,19 +5546,21 @@ def usuario_opiniones_obtener_sat(request):
         return JsonResponse({'error': 'Método no permitido'}, status=405)
 
     rfc = request.POST.get('rfc')
-    tipo = request.POST.get('tipo')
-    if not rfc or not tipo:
+    tipo_entidad = request.POST.get('tipo')
+    if not rfc or not tipo_entidad:
         return JsonResponse({'error': 'Faltan datos (RFC o tipo)'}, status=400)
 
     db_name = request.session.get('empresa_db_name')
     rfc_empresa = request.session.get('empresa_rfc')
-    if not db_name or not rfc_empresa:
+    empresa_nombre = request.session.get('empresa_nombre')
+    if not db_name or not rfc_empresa or not empresa_nombre:
         return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
 
     task_id = str(uuid.uuid4())
-    tasks_status[task_id] = {'logs': [], 'finished': False, 'success': False, 'error': None}
+    logs_inicial = [f"🚀 Iniciando obtención de opinión para RFC {rfc}"]
+    crear_tarea(task_id, 'opinion', db_name, rfc_empresa, empresa_nombre, logs_inicial)
 
-    thread = threading.Thread(target=run_opinion_task, args=(task_id, rfc, tipo, db_name, rfc_empresa))
+    thread = threading.Thread(target=run_opinion_task, args=(task_id, rfc, tipo_entidad, db_name, rfc_empresa, empresa_nombre))
     thread.daemon = True
     thread.start()
 
@@ -5534,16 +5568,17 @@ def usuario_opiniones_obtener_sat(request):
 
 @usuario_required
 def usuario_opiniones_obtener_sat_status(request, task_id):
-    """Devuelve el estado y los logs de una tarea."""
-    status = tasks_status.get(task_id)
-    if not status:
+    tarea = obtener_tarea(task_id)
+    if not tarea:
         return JsonResponse({'error': 'Tarea no encontrada'}, status=404)
     return JsonResponse({
-        'finished': status['finished'],
-        'logs': status['logs'],
-        'success': status.get('success', False),
-        'error': status.get('error')
+        'finished': tarea['finished'],
+        'logs': tarea['logs'],
+        'success': tarea['success'],
+        'error': tarea['error']
     })
+
+
 
 
 
