@@ -2894,7 +2894,7 @@ def registrar_proveedor(db_name, rfc_prov, nombre, rfc_cliente, logs):
 
 # ========== FUNCIONES PARA MANEJO DE TAREAS EN BD ==========
 
-def crear_tarea(task_id, tipo, db_name, rfc_empresa, empresa_nombre):
+def crear_tarea(task_id, tipo, db_name, rfc_empresa, empresa_nombre,logs=None):
     """Inserta una nueva tarea en la base de datos central."""
     with connections['default'].cursor() as cursor:
         cursor.execute("""
