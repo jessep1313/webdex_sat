@@ -5295,7 +5295,7 @@ def usuario_opiniones_obtener_sat_____(request):
 # Diccionario en memoria para almacenar el estado de las tareas
 tasks_status = {}
 
-def obtener_opinion_sat(rfc, download_dir, logs):
+def obtener_opinion_sat______(rfc, download_dir, logs):
     """
     Realiza la consulta al SAT y devuelve:
     - 'pdf': ruta del archivo descargado, fecha, resultado
@@ -5437,6 +5437,197 @@ def obtener_opinion_sat(rfc, download_dir, logs):
         logs.append(f"❌ Error general: {str(e)}")
         driver.quit()
         return None
+
+
+
+import os
+import time
+import re
+import shutil
+from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from PyPDF2 import PdfReader
+
+def obtener_opinion_sat(rfc, download_dir, logs):
+    """
+    Consulta la opinión de cumplimiento del SAT usando Selenium Chrome.
+    Retorna:
+      - {'pdf_path': path, 'fecha': date, 'resultado': str} si hay PDF
+      - {'status': str, 'fecha': date} si solo hay estatus
+      - None si falla
+    """
+    options = Options()
+    # Argumentos esenciales para entornos headless y restringidos
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-setuid-sandbox")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--user-data-dir=/tmp/chrome-user-data")
+    options.add_argument("--disk-cache-dir=/tmp/chrome-cache")
+    options.add_argument("--log-level=3")
+    options.add_argument("--silent")
+    options.add_argument("--window-size=1920,1080")
+    options.add_experimental_option('prefs', {
+        "download.default_directory": download_dir,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "plugins.always_open_pdf_externally": True
+    })
+    
+    # Variables de entorno adicionales
+    os.environ['TMPDIR'] = '/tmp'
+    
+    # Asegurar que el directorio de descarga existe
+    os.makedirs(download_dir, exist_ok=True)
+    
+    try:
+        # Descargar/actualizar ChromeDriver automáticamente
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+        logs.append("✅ Navegador iniciado correctamente")
+    except Exception as e:
+        logs.append(f"❌ Error al iniciar Chrome: {str(e)}")
+        return None
+
+    try:
+        url = 'https://ptsc32d.clouda.sat.gob.mx/ConsultaPublico'
+        driver.get(url)
+        logs.append("🌐 Página del SAT cargada")
+        
+        # Configurar descarga automática (ya está en prefs, pero repetimos por si acaso)
+        driver.execute_cdp_cmd('Page.setDownloadBehavior', {
+            'behavior': 'allow',
+            'downloadPath': download_dir
+        })
+        
+        # Ingresar RFC letra por letra (más realista)
+        rfc_input = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.ID, "txtRfc"))
+        )
+        rfc_input.clear()
+        for c in rfc:
+            rfc_input.send_keys(c)
+            time.sleep(0.1)
+        logs.append(f"🔑 RFC {rfc} ingresado")
+        
+        # Hacer clic en buscar
+        driver.find_element(By.ID, "buqueda").click()
+        logs.append("🔍 Buscando...")
+        
+        # Esperar un momento para que cargue la respuesta
+        time.sleep(5)
+        
+        # Obtener texto de la página
+        body = driver.find_element(By.TAG_NAME, "body")
+        texto_pagina = body.text
+        
+        # Patrones para identificar el resultado
+        patron_negativo = r"El RFC o CURP, no cumple con los requisitos para hacer pública su opinión positiva"
+        patron_sin_respuesta = r"El RFC o CURP consultado no se encuentra autorizado para hacerse público"
+        patron_positivo = r"Opinión Positiva.* Información a la fecha de la consulta"
+        
+        if re.search(patron_negativo, texto_pagina):
+            logs.append("⚠️ RFC no cumple requisitos → Estatus Negativo")
+            driver.quit()
+            return {'status': 'Negativo', 'fecha': datetime.now().date()}
+        elif re.search(patron_sin_respuesta, texto_pagina):
+            logs.append("⚠️ RFC no autorizado → Estatus SinRespuesta")
+            driver.quit()
+            return {'status': 'SinRespuesta', 'fecha': datetime.now().date()}
+        elif re.search(patron_positivo, texto_pagina):
+            logs.append("✅ Opinión positiva detectada, se intentará descargar PDF")
+        else:
+            logs.append("📄 No se detectó mensaje de error, intentando descargar PDF...")
+        
+        # Localizar iframe (puede cambiar con el tiempo, pero la ruta es común)
+        try:
+            iframe = WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.XPATH, "/html/body/div/main/div[2]/div/label/div[2]/div[1]/iframe"))
+            )
+            driver.switch_to.frame(iframe)
+            logs.append("🖱️ Cambiando al iframe...")
+        except Exception as e:
+            logs.append(f"❌ No se pudo acceder al iframe: {str(e)}")
+            driver.quit()
+            return None
+
+        # Hacer clic en el botón de descarga del PDF
+        try:
+            boton = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "/html/body/div/div/a/button"))
+            )
+            boton.click()
+            logs.append("⬇️ Descargando PDF...")
+        except Exception as e:
+            logs.append(f"❌ Error al hacer clic en el botón de descarga: {str(e)}")
+            driver.quit()
+            return None
+        
+        # Esperar a que se descargue el archivo (máximo 15 segundos)
+        time.sleep(10)
+        archivos = [f for f in os.listdir(download_dir) if f.endswith('.pdf')]
+        if not archivos:
+            logs.append("❌ No se detectó ningún PDF descargado")
+            driver.quit()
+            return None
+        
+        # Ordenar por fecha de modificación descendente
+        archivos.sort(key=lambda x: os.path.getmtime(os.path.join(download_dir, x)), reverse=True)
+        pdf_path = os.path.join(download_dir, archivos[0])
+        logs.append(f"✅ PDF descargado: {os.path.basename(pdf_path)}")
+        
+        # Extraer datos del PDF
+        with open(pdf_path, 'rb') as f:
+            reader = PdfReader(f)
+            texto_pdf = ""
+            for page in reader.pages:
+                texto_pdf += page.extract_text()
+        
+        # Extraer fecha
+        patron_fecha = r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s+a\s+las\s+(\d{1,2}:\d{2})\s+horas'
+        match_fecha = re.search(patron_fecha, texto_pdf)
+        if not match_fecha:
+            logs.append("❌ No se encontró la fecha en el PDF")
+            driver.quit()
+            return None
+        dia = int(match_fecha.group(1))
+        mes_str = match_fecha.group(2).lower()
+        anio = int(match_fecha.group(3))
+        meses = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+            'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        }
+        mes = meses.get(mes_str, 1)
+        fecha_opinion = datetime(anio, mes, dia).date()
+        
+        # Extraer resultado (P o N)
+        patron_resultado = r'\|[^|]*\|[^|]*\|[^|]*\|([PN])\|\|'
+        match_res = re.search(patron_resultado, texto_pdf)
+        resultado = 'Positivo' if match_res and match_res.group(1) == 'P' else 'Negativo' if match_res and match_res.group(1) == 'N' else 'SinRespuesta'
+        logs.append(f"📊 Datos extraídos: fecha={fecha_opinion}, resultado={resultado}")
+        
+        driver.quit()
+        return {'pdf_path': pdf_path, 'fecha': fecha_opinion, 'resultado': resultado}
+        
+    except Exception as e:
+        logs.append(f"❌ Error general: {str(e)}")
+        try:
+            driver.quit()
+        except:
+            pass
+        return None
+    
+
 
 # ========== TAREA ASÍNCRONA PARA OPINIONES (con BD) ==========
 
