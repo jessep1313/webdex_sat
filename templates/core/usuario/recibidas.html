@@ -476,6 +476,10 @@
             XLSX.writeFile(wb, `cfdi_recibidas_${new Date().toISOString().slice(0,19)}.xlsx`);
         });
 
+
+      
+
+
         // Botón "Revisar peticiones"
         $('#btnRevisarPeticiones_2').click(function() {
             $('#modalCarga').modal('show');
@@ -506,13 +510,29 @@
             });
         });
 
+        let pollingInterval = null;
+        let isTaskRunning = false;
 
-        // ========== BOTÓN ASÍNCRONO (NUEVO) ==========
         $('#btnRevisarPeticiones').click(function() {
+            if (isTaskRunning) {
+                alert('Ya hay una tarea en ejecución. Espera a que termine.');
+                return;
+            }
+
             const modal = $('#modalCarga');
             const logContainer = $('#logContainer');
             logContainer.html('<p>🚀 Iniciando proceso...</p>');
             modal.modal('show');
+
+            const $btn = $(this);
+            $btn.prop('disabled', true);
+            isTaskRunning = true;
+
+            // Detener intervalo anterior si existe (seguridad)
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
 
             $.ajax({
                 url: "{% url 'usuario_revisar_peticiones_async' %}",
@@ -520,8 +540,8 @@
                 headers: { 'X-CSRFToken': '{{ csrf_token }}' },
                 success: function(resp) {
                     if (resp.task_id) {
-                        const taskId = resp.task_id;
-                        let interval = setInterval(function() {
+                        const taskId = resp.task_id; // Variable local
+                        pollingInterval = setInterval(function() {
                             $.ajax({
                                 url: "{% url 'usuario_revisar_peticiones_status' 'xxx' %}".replace('xxx', taskId),
                                 method: "GET",
@@ -532,33 +552,49 @@
                                     }
                                     logContainer.html(logsHtml);
                                     if (statusResp.finished) {
-                                        clearInterval(interval);
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
                                         if (statusResp.success) {
                                             logContainer.append('<p class="text-success">✅ Proceso completado exitosamente.</p>');
                                             setTimeout(function() {
                                                 modal.modal('hide');
-                                                cargarDatosFiltro(); // Recargar tabla y gráficos
+                                                cargarDatosFiltro(); // Recargar datos
                                             }, 2000);
                                         } else {
                                             logContainer.append('<p class="text-danger">❌ Error: ' + (statusResp.error || 'Desconocido') + '</p>');
                                             setTimeout(function() { modal.modal('hide'); }, 5000);
                                         }
+                                        $btn.prop('disabled', false);
+                                        isTaskRunning = false;
                                     }
                                 },
-                                error: function() {
-                                    clearInterval(interval);
-                                    logContainer.html('<p class="text-danger">Error al consultar estado de la tarea.</p>');
+                                error: function(xhr) {
+                                    if (xhr.status === 404) {
+                                        // La tarea ya no existe (normal si ya terminó y se limpió)
+                                        clearInterval(pollingInterval);
+                                        pollingInterval = null;
+                                        logContainer.html('<p class="text-warning">⚠️ La tarea ya no está disponible (posiblemente finalizó antes).</p>');
+                                        setTimeout(function() { modal.modal('hide'); }, 3000);
+                                        $btn.prop('disabled', false);
+                                        isTaskRunning = false;
+                                    } else {
+                                        logContainer.html('<p class="text-danger">Error al consultar estado.</p>');
+                                    }
                                 }
                             });
                         }, 1500);
                     } else {
                         logContainer.html('<p class="text-danger">Error: No se pudo iniciar la tarea.</p>');
                         setTimeout(function() { modal.modal('hide'); }, 3000);
+                        $btn.prop('disabled', false);
+                        isTaskRunning = false;
                     }
                 },
                 error: function() {
                     logContainer.html('<p class="text-danger">Error de conexión al servidor.</p>');
                     setTimeout(function() { modal.modal('hide'); }, 3000);
+                    $btn.prop('disabled', false);
+                    isTaskRunning = false;
                 }
             });
         });
