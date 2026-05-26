@@ -5493,7 +5493,9 @@ def obtener_opinion_sat(rfc, download_dir, logs):
     try:
         # Descargar/actualizar ChromeDriver automáticamente
         service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
+        #driver = webdriver.Chrome(service=service, options=options)
+        driver = webdriver.Chrome(options=opciones)
+
         logs.append("✅ Navegador iniciado correctamente")
     except Exception as e:
         logs.append(f"❌ Error al iniciar Chrome: {str(e)}")
