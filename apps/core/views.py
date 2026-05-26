@@ -2892,16 +2892,58 @@ def registrar_proveedor(db_name, rfc_prov, nombre, rfc_cliente, logs):
     except Exception as e:
         logs.append(f"    Error registrando proveedor: {str(e)}")
 
-# ========== TAREAS ASÍNCRONAS ==========
-tasks_status_cfdi = {}
+# ========== FUNCIONES PARA MANEJO DE TAREAS EN BD ==========
+
+def crear_tarea(task_id, tipo, db_name, rfc_empresa, empresa_nombre):
+    """Inserta una nueva tarea en la base de datos central."""
+    with connections['default'].cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO tareas_asincronas (task_id, tipo, empresa_db_name, rfc_empresa, empresa_nombre, logs)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, [task_id, tipo, db_name, rfc_empresa, empresa_nombre, json.dumps([])])
+
+def actualizar_tarea(task_id, logs=None, estado=None, success=None, error=None):
+    """Actualiza logs, estado y resultado de una tarea."""
+    with connections['default'].cursor() as cursor:
+        if logs is not None:
+            cursor.execute("UPDATE tareas_asincronas SET logs = %s WHERE task_id = %s", [json.dumps(logs), task_id])
+        if estado is not None:
+            cursor.execute("UPDATE tareas_asincronas SET estado = %s WHERE task_id = %s", [estado, task_id])
+        if success is not None:
+            cursor.execute("UPDATE tareas_asincronas SET success = %s WHERE task_id = %s", [success, task_id])
+        if error is not None:
+            cursor.execute("UPDATE tareas_asincronas SET error = %s WHERE task_id = %s", [error, task_id])
+        cursor.execute("UPDATE tareas_asincronas SET fecha_actualizacion = NOW() WHERE task_id = %s", [task_id])
+
+def obtener_tarea(task_id):
+    """Recupera una tarea por su ID."""
+    with connections['default'].cursor() as cursor:
+        cursor.execute("SELECT logs, estado, success, error FROM tareas_asincronas WHERE task_id = %s", [task_id])
+        row = cursor.fetchone()
+        if not row:
+            return None
+        logs = json.loads(row[0]) if row[0] else []
+        estado = row[1]
+        success = bool(row[2])
+        error = row[3]
+        finished = estado != 'en_proceso'
+        return {
+            'finished': finished,
+            'logs': logs,
+            'success': success,
+            'error': error
+        }
+
+# ========== TAREAS ASÍNCRONAS (RECIBIDAS) ==========
 
 def run_revisar_peticiones_task(task_id, db_name, rfc_empresa, empresa_nombre):
     logs = []
-    tasks_status_cfdi[task_id] = {'logs': logs, 'finished': False, 'success': False, 'error': None}
     try:
         from empresas.models import EFirma
         from satcfdi.models import Signer
         from satcfdi.pacs.sat import SAT, EstadoSolicitud
+
+        actualizar_tarea(task_id, logs=logs, estado='en_proceso')
 
         efirma = EFirma.objects.using('default').get(empresa=empresa_nombre, estatus='validado')
 
@@ -2925,6 +2967,7 @@ def run_revisar_peticiones_task(task_id, db_name, rfc_empresa, empresa_nombre):
         # 1. Descarga
         for id_peticion, fechainicio in peticiones_descarga:
             logs.append(f"Verificando petición {id_peticion}...")
+            actualizar_tarea(task_id, logs=logs)
             try:
                 if isinstance(fechainicio, date):
                     fecha = fechainicio
@@ -2976,10 +3019,12 @@ def run_revisar_peticiones_task(task_id, db_name, rfc_empresa, empresa_nombre):
                     logs.append(f"  Petición falló: {respuesta.get('CodEstatus')} - {respuesta.get('Mensaje')}")
             except Exception as e:
                 logs.append(f"  Error en petición {id_peticion}: {str(e)}")
+            actualizar_tarea(task_id, logs=logs)
 
         # 2. Procesamiento XML
         for id_peticion, fechainicio in peticiones_procesar:
             logs.append(f"Procesando XML de petición {id_peticion}...")
+            actualizar_tarea(task_id, logs=logs)
             try:
                 if isinstance(fechainicio, date):
                     fecha = fechainicio
@@ -3017,6 +3062,7 @@ def run_revisar_peticiones_task(task_id, db_name, rfc_empresa, empresa_nombre):
                         logs.append(f"    Error procesando ZIP: {str(e)}")
                     finally:
                         shutil.rmtree(temp_dir, ignore_errors=True)
+                    actualizar_tarea(task_id, logs=logs)
                 if zips:
                     with connections[db_name].cursor() as cursor_upd:
                         cursor_upd.execute("UPDATE peticiones_sat SET cargadoxml = 1 WHERE idpeticion = %s", [id_peticion])
@@ -3024,21 +3070,21 @@ def run_revisar_peticiones_task(task_id, db_name, rfc_empresa, empresa_nombre):
                     total_procesados += 1
             except Exception as e:
                 logs.append(f"  Error procesando petición {id_peticion}: {str(e)}")
+            actualizar_tarea(task_id, logs=logs)
 
         if total_descargas == 0 and total_procesados == 0:
             logs.append("No se encontraron peticiones pendientes o no se pudo descargar ningún paquete.")
         else:
             logs.append(f"Proceso completado. Descargas: {total_descargas}, XML procesados: {total_procesados}.")
 
-        tasks_status_cfdi[task_id]['success'] = True
+        actualizar_tarea(task_id, logs=logs, estado='completado', success=True)
     except Exception as e:
-        tasks_status_cfdi[task_id]['error'] = str(e)
-        logs.append(f"❌ Error general: {str(e)}")
-    finally:
-        tasks_status_cfdi[task_id]['finished'] = True
-        tasks_status_cfdi[task_id]['logs'] = logs
+        error_msg = str(e)
+        logs.append(f"❌ Error general: {error_msg}")
+        actualizar_tarea(task_id, logs=logs, estado='error', success=False, error=error_msg)
 
-# ========== VISTAS ASÍNCRONAS ==========
+# ========== VISTAS ASÍNCRONAS (MODIFICADAS) ==========
+
 @usuario_required
 @csrf_exempt
 def usuario_revisar_peticiones_async(request):
@@ -3049,6 +3095,7 @@ def usuario_revisar_peticiones_async(request):
         return JsonResponse({'status': 'error', 'message': 'No se ha identificado la empresa.'}, status=400)
 
     task_id = str(uuid.uuid4())
+    crear_tarea(task_id, 'recibidas', db_name, rfc_empresa, empresa_nombre)
     thread = threading.Thread(target=run_revisar_peticiones_task, args=(task_id, db_name, rfc_empresa, empresa_nombre))
     thread.daemon = True
     thread.start()
@@ -3056,16 +3103,10 @@ def usuario_revisar_peticiones_async(request):
 
 @usuario_required
 def usuario_revisar_peticiones_status(request, task_id):
-    status = tasks_status_cfdi.get(task_id)
-    if not status:
+    tarea = obtener_tarea(task_id)
+    if not tarea:
         return JsonResponse({'error': 'Tarea no encontrada'}, status=404)
-    return JsonResponse({
-        'finished': status['finished'],
-        'logs': status['logs'],
-        'success': status.get('success', False),
-        'error': status.get('error')
-    })
-
+    return JsonResponse(tarea)
 
 
 
