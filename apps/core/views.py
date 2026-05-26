@@ -3113,325 +3113,339 @@ def usuario_revisar_peticiones_status(request, task_id):
 
 
 
+# ========== FUNCIONES AUXILIARES PARA EMITIDAS (fuera de cualquier vista) ==========
 
+def extraer_datos_factura_emitida(xml_path, rfc_emisor):
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        ns = {
+            'cfdi': 'http://www.sat.gob.mx/cfd/4',
+            'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital',
+            'pago10': 'http://www.sat.gob.mx/Pagos',
+            'pago20': 'http://www.sat.gob.mx/Pagos20'
+        }
+        emisor = root.find('cfdi:Emisor', ns)
+        if emisor is None or emisor.get('Rfc') != rfc_emisor:
+            return {'error': 'Emisor no coincide'}
+        complemento_pago = root.find('.//pago10:Pagos', ns) or root.find('.//pago20:Pagos', ns)
+        if complemento_pago is not None:
+            return procesar_complemento_pago_emitida(root, ns, rfc_emisor)
+        else:
+            return procesar_factura_normal_emitida(root, ns, rfc_emisor)
+    except ET.ParseError as e:
+        return {'error': f'XML inválido: {e}'}
+    except Exception as e:
+        return {'error': str(e)}
 
+def procesar_factura_normal_emitida(root, ns, rfc_emisor):
+    emisor = root.find('cfdi:Emisor', ns)
+    rfc_emisor_xml = emisor.get('Rfc') if emisor is not None else ''
+    nombre_emisor = emisor.get('Nombre') if emisor is not None else ''
+    receptor = root.find('cfdi:Receptor', ns)
+    rfc_receptor = receptor.get('Rfc') if receptor is not None else ''
+    nombre_receptor = receptor.get('Nombre') if receptor is not None else ''
+    subtotal = root.get('SubTotal', '0.00')
+    total = root.get('Total', '0.00')
+    iva = '0.00'
+    impuestos = root.find('cfdi:Impuestos', ns)
+    if impuestos is not None:
+        traslados = impuestos.find('cfdi:Traslados', ns)
+        if traslados is not None:
+            for traslado in traslados.findall('cfdi:Traslado', ns):
+                if traslado.get('Impuesto') == '002':
+                    iva = traslado.get('Importe', '0.00')
+                    break
+    forma_pago_cod = root.get('FormaPago', '99')
+    forma_pago_desc = FORMAS_PAGO.get(forma_pago_cod, f"{forma_pago_cod} - Desconocido")
+    metodo_pago_cod = root.get('MetodoPago', 'PPD')
+    metodo_pago_desc = METODOS_PAGO.get(metodo_pago_cod, f"{metodo_pago_cod} - Desconocido")
+    datos = {
+        'rfc_emisor': rfc_emisor_xml,
+        'rfc_receptor': rfc_receptor,
+        'folio': root.get('Folio'),
+        'uuid': None,
+        'fecha_comprobante': root.get('Fecha')[:10] if root.get('Fecha') else None,
+        'total': total,
+        'iva': iva,
+        'suma': f"{float(subtotal) + float(iva):.2f}",
+        'status_sat': 'R',
+        'moneda': root.get('Moneda', 'MXN'),
+        'tipo_cambio': root.get('TipoCambio', '1.0'),
+        'forma_pago': forma_pago_desc,
+        'metodo_pago': metodo_pago_desc,
+        'fecha_timbrado': None,
+        'saldo_pendiente': total,
+        'nombre_emisor': nombre_emisor,
+        'nombre_receptor': nombre_receptor,
+    }
+    timbre = root.find('cfdi:Complemento//tfd:TimbreFiscalDigital', ns)
+    if timbre is not None:
+        datos['uuid'] = timbre.get('UUID')
+        datos['fecha_timbrado'] = timbre.get('FechaTimbrado')[:10] if timbre.get('FechaTimbrado') else None
+    return datos
+
+def procesar_complemento_pago_emitida(root, ns, rfc_emisor):
+    emisor = root.find('cfdi:Emisor', ns)
+    rfc_emisor_xml = emisor.get('Rfc') if emisor is not None else ''
+    nombre_emisor = emisor.get('Nombre') if emisor is not None else ''
+    receptor = root.find('cfdi:Receptor', ns)
+    rfc_receptor = receptor.get('Rfc') if receptor is not None else ''
+    nombre_receptor = receptor.get('Nombre') if receptor is not None else ''
+    pagos = root.find('.//pago10:Pagos', ns) or root.find('.//pago20:Pagos', ns)
+    monto_total = '0.00'
+    fecha_pago = None
+    num_operacion = ''
+    uuids_relacionados = []
+    if pagos is not None:
+        pago = pagos.find('.//pago10:Pago', ns) or pagos.find('.//pago20:Pago', ns)
+        if pago is not None:
+            monto_total = pago.get('Monto', '0.00')
+            fecha_pago = pago.get('FechaPago')
+            num_operacion = pago.get('NumOperacion', '')
+            doctos = pago.findall('.//pago10:DoctoRelacionado', ns) or pago.findall('.//pago20:DoctoRelacionado', ns)
+            for docto in doctos:
+                uuid = docto.get('IdDocumento')
+                if uuid:
+                    uuids_relacionados.append(uuid)
+    forma_pago_cod = root.get('FormaPago', '99')
+    forma_pago_desc = FORMAS_PAGO.get(forma_pago_cod, f"{forma_pago_cod} - Desconocido")
+    datos = {
+        'rfc_emisor': rfc_emisor_xml,
+        'rfc_receptor': rfc_receptor,
+        'folio': root.get('Folio') or f"CP-{num_operacion}",
+        'uuid': None,
+        'fecha_comprobante': fecha_pago[:10] if fecha_pago else root.get('Fecha')[:10] if root.get('Fecha') else None,
+        'total': monto_total,
+        'moneda': root.get('Moneda', 'MXN'),
+        'forma_pago': forma_pago_desc,
+        'uso_cfdi': receptor.get('UsoCFDI', '') if receptor else '',
+        'uudirelacion': ','.join(uuids_relacionados),
+        'iva': '0.00',
+        'suma': monto_total,
+        'status_sat': 'R',
+        'tipo_cambio': root.get('TipoCambio', '1.0'),
+        'metodo_pago': '',
+        'fecha_timbrado': None,
+        'saldo_pendiente': monto_total,
+        'nombre_emisor': nombre_emisor,
+        'nombre_receptor': nombre_receptor
+    }
+    timbre = root.find('cfdi:Complemento//tfd:TimbreFiscalDigital', ns)
+    if timbre is not None:
+        datos['uuid'] = timbre.get('UUID')
+        datos['fecha_timbrado'] = timbre.get('FechaTimbrado')[:10] if timbre.get('FechaTimbrado') else None
+    return datos
+
+def insertar_cfdi_emitido(db_name, datos, logs):
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM cfdi_emitidos WHERE uuid = %s", [datos['uuid']])
+            if cursor.fetchone()[0] > 0:
+                logs.append(f"    UUID {datos['uuid']} ya existe, omitiendo.")
+                return
+            cursor.execute("""
+                INSERT INTO cfdi_emitidos (
+                    rfc_emisor, rfc_receptor, folio, uuid, fecha_comprobante, total, iva, suma,
+                    status_sat, moneda, tipo_cambio, forma_pago, metodo_pago, fecha_timbrado, saldo_pendiente
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, [
+                datos['rfc_emisor'], datos['rfc_receptor'], datos['folio'], datos['uuid'],
+                datos['fecha_comprobante'], datos['total'], datos['iva'], datos['suma'],
+                datos['status_sat'], datos['moneda'], datos['tipo_cambio'], datos['forma_pago'],
+                datos['metodo_pago'], datos['fecha_timbrado'], datos['saldo_pendiente']
+            ])
+        logs.append(f"    CFDI emitido insertado: UUID {datos['uuid']}")
+    except Exception as e:
+        logs.append(f"    Error insertando CFDI emitido: {str(e)}")
+
+def registrar_cliente(db_name, rfc_cliente, nombre, rfc_empresa, logs):
+    try:
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM clientes WHERE RFC = %s AND rfc_identy = %s", [rfc_cliente, rfc_empresa])
+            if cursor.fetchone()[0] > 0:
+                return
+            cursor.execute("""
+                INSERT INTO clientes (RFC, RazonSocial, Estatus, tipoProveedor, Correo, rfc_identy)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, [rfc_cliente, nombre, 'SinRespuesta', 'Otro', 'generico@generico.com', rfc_empresa])
+        logs.append(f"    Cliente registrado: {rfc_cliente} - {nombre}")
+    except Exception as e:
+        logs.append(f"    Error registrando cliente: {str(e)}")
+
+# ========== TAREA ASÍNCRONA PARA EMITIDAS ==========
+
+def run_revisar_peticiones_emitidas_task(task_id, db_name, rfc_empresa, empresa_nombre):
+    logs = []
+    try:
+        from empresas.models import EFirma
+        from satcfdi.models import Signer
+        from satcfdi.pacs.sat import SAT, EstadoSolicitud
+
+        actualizar_tarea(task_id, logs=logs, estado='en_proceso')
+
+        efirma = EFirma.objects.using('default').get(empresa=empresa_nombre, estatus='validado')
+
+        with connections[db_name].cursor() as cursor:
+            cursor.execute("""
+                SELECT idpeticion, fechainicio
+                FROM peticiones_sat
+                WHERE rfc = %s AND estatuspeticion = 0 AND tipo = 'E'
+            """, [rfc_empresa])
+            peticiones_descarga = cursor.fetchall()
+            cursor.execute("""
+                SELECT idpeticion, fechainicio
+                FROM peticiones_sat
+                WHERE rfc = %s AND estatuspeticion = 1 AND cargadoxml = 0 AND tipo = 'E'
+            """, [rfc_empresa])
+            peticiones_procesar = cursor.fetchall()
+
+        total_descargas = 0
+        total_procesados = 0
+
+        # 1. Descarga
+        for id_peticion, fechainicio in peticiones_descarga:
+            logs.append(f"Verificando petición emitida {id_peticion}...")
+            actualizar_tarea(task_id, logs=logs)
+            try:
+                if isinstance(fechainicio, date):
+                    fecha = fechainicio
+                else:
+                    fecha = datetime.strptime(fechainicio, '%Y-%m-%d').date()
+                cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
+                key_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_key)
+                if not os.path.exists(cer_path) or not os.path.exists(key_path):
+                    logs.append("  Archivos FIEL no encontrados.")
+                    continue
+                password = loads(efirma.password)
+                with open(cer_path, 'rb') as cer_file, open(key_path, 'rb') as key_file:
+                    signer = Signer.load(certificate=cer_file.read(), key=key_file.read(), password=password)
+                sat = SAT(signer=signer)
+                respuesta = sat.recover_comprobante_status(id_peticion)
+                estado = respuesta.get("EstadoSolicitud")
+                if estado == EstadoSolicitud.TERMINADA:
+                    ids_paquetes = respuesta.get('IdsPaquetes', [])
+                    if ids_paquetes:
+                        folder = os.path.join(settings.MEDIA_ROOT, 'cfdi', rfc_empresa, str(fecha.year), f"{fecha.month:02d}")
+                        os.makedirs(folder, exist_ok=True)
+                        descargados = 0
+                        for id_paquete in ids_paquetes:
+                            try:
+                                _, paquete_base64 = sat.recover_comprobante_download(id_paquete)
+                                if paquete_base64 is None:
+                                    logs.append(f"  Paquete {id_paquete} no disponible (None).")
+                                    continue
+                                paquete_bytes = base64.b64decode(paquete_base64)
+                                zip_path = os.path.join(folder, f"{id_paquete}.zip")
+                                with open(zip_path, 'wb') as f:
+                                    f.write(paquete_bytes)
+                                descargados += 1
+                                logs.append(f"  Paquete {id_paquete} descargado.")
+                            except Exception as e:
+                                logs.append(f"  Error descargando paquete {id_paquete}: {str(e)}")
+                        if descargados > 0:
+                            with connections[db_name].cursor() as cursor_upd:
+                                cursor_upd.execute("UPDATE peticiones_sat SET estatuspeticion = 1 WHERE idpeticion = %s", [id_peticion])
+                            logs.append(f"  Petición emitida {id_peticion} marcada como descargada ({descargados} paquete(s)).")
+                            total_descargas += 1
+                        else:
+                            logs.append("  No se pudo descargar ningún paquete. La petición permanece pendiente.")
+                    else:
+                        logs.append("  Petición terminada sin paquetes.")
+                elif estado in (EstadoSolicitud.ACEPTADA, EstadoSolicitud.EN_PROCESO):
+                    logs.append("  Petición aún en proceso (no hay respuesta del SAT).")
+                else:
+                    logs.append(f"  Petición falló: {respuesta.get('CodEstatus')} - {respuesta.get('Mensaje')}")
+            except Exception as e:
+                logs.append(f"  Error en petición {id_peticion}: {str(e)}")
+            actualizar_tarea(task_id, logs=logs)
+
+        # 2. Procesamiento XML
+        for id_peticion, fechainicio in peticiones_procesar:
+            logs.append(f"Procesando XML de petición emitida {id_peticion}...")
+            actualizar_tarea(task_id, logs=logs)
+            try:
+                if isinstance(fechainicio, date):
+                    fecha = fechainicio
+                else:
+                    fecha = datetime.strptime(fechainicio, '%Y-%m-%d').date()
+                zip_folder = os.path.join(settings.MEDIA_ROOT, 'cfdi', rfc_empresa, str(fecha.year), f"{fecha.month:02d}")
+                id_peticion_mayus = id_peticion.upper()
+                zips = glob.glob(os.path.join(zip_folder, f"{id_peticion_mayus}_*.zip"))
+                if not zips:
+                    logs.append(f"  No se encontraron ZIP para la petición {id_peticion} en {zip_folder}")
+                    continue
+                for zip_path in zips:
+                    logs.append(f"  Procesando ZIP: {os.path.basename(zip_path)}")
+                    temp_dir = tempfile.mkdtemp()
+                    try:
+                        with zipfile.ZipFile(zip_path, 'r') as zf:
+                            zf.extractall(temp_dir)
+                        xml_files = []
+                        for root_dir, _, files in os.walk(temp_dir):
+                            for file in files:
+                                if file.lower().endswith('.xml'):
+                                    xml_files.append(os.path.join(root_dir, file))
+                        if not xml_files:
+                            logs.append("    No se encontraron XML en el ZIP.")
+                        for xml_path in xml_files:
+                            datos = extraer_datos_factura_emitida(xml_path, rfc_empresa)
+                            if datos and 'error' not in datos:
+                                insertar_cfdi_emitido(db_name, datos, logs)
+                                if datos.get('rfc_receptor') and datos.get('nombre_receptor'):
+                                    registrar_cliente(db_name, datos['rfc_receptor'], datos['nombre_receptor'], rfc_empresa, logs)
+                            else:
+                                error_msg = datos.get('error', 'Desconocido') if datos else 'No se extrajeron datos'
+                                logs.append(f"    Error al extraer datos de {os.path.basename(xml_path)}: {error_msg}")
+                    except Exception as e:
+                        logs.append(f"    Error procesando ZIP: {str(e)}")
+                    finally:
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                    actualizar_tarea(task_id, logs=logs)
+                if zips:
+                    with connections[db_name].cursor() as cursor_upd:
+                        cursor_upd.execute("UPDATE peticiones_sat SET cargadoxml = 1 WHERE idpeticion = %s", [id_peticion])
+                    logs.append("  Petición emitida marcada como procesada (XML cargados).")
+                    total_procesados += 1
+            except Exception as e:
+                logs.append(f"  Error procesando petición {id_peticion}: {str(e)}")
+            actualizar_tarea(task_id, logs=logs)
+
+        if total_descargas == 0 and total_procesados == 0:
+            logs.append("No se encontraron peticiones emitidas pendientes o no se pudo descargar ningún paquete.")
+        else:
+            logs.append(f"Proceso completado. Descargas: {total_descargas}, XML procesados: {total_procesados}.")
+
+        actualizar_tarea(task_id, logs=logs, estado='completado', success=True)
+    except Exception as e:
+        error_msg = str(e)
+        logs.append(f"❌ Error general: {error_msg}")
+        actualizar_tarea(task_id, logs=logs, estado='error', success=False, error=error_msg)
+
+# ========== VISTAS ASÍNCRONAS PARA EMITIDAS ==========
 
 @usuario_required
-def usuario_revisar_peticiones_emitidas(request):
-    # ========== Funciones auxiliares ==========
-    def extraer_datos_factura_emitida(xml_path, rfc_emisor):
-        try:
-            tree = ET.parse(xml_path)
-            root = tree.getroot()
-            ns = {
-                'cfdi': 'http://www.sat.gob.mx/cfd/4',
-                'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital',
-                'pago10': 'http://www.sat.gob.mx/Pagos',
-                'pago20': 'http://www.sat.gob.mx/Pagos20'
-            }
-            # Verificar que el emisor coincide con el RFC de la empresa
-            emisor = root.find('cfdi:Emisor', ns)
-            if emisor is None or emisor.get('Rfc') != rfc_emisor:
-                return {'error': 'Emisor no coincide'}
-            complemento_pago = root.find('.//pago10:Pagos', ns) or root.find('.//pago20:Pagos', ns)
-            if complemento_pago is not None:
-                return procesar_complemento_pago_emitida(root, ns, rfc_emisor)
-            else:
-                return procesar_factura_normal_emitida(root, ns, rfc_emisor)
-        except ET.ParseError as e:
-            return {'error': f'XML inválido: {e}'}
-        except Exception as e:
-            return {'error': str(e)}
-
-    def procesar_factura_normal_emitida(root, ns, rfc_emisor):
-        emisor = root.find('cfdi:Emisor', ns)
-        rfc_emisor_xml = emisor.get('Rfc') if emisor is not None else ''
-        nombre_emisor = emisor.get('Nombre') if emisor is not None else ''
-        receptor = root.find('cfdi:Receptor', ns)
-        rfc_receptor = receptor.get('Rfc') if receptor is not None else ''
-        nombre_receptor = receptor.get('Nombre') if receptor is not None else ''
-        subtotal = root.get('SubTotal', '0.00')
-        total = root.get('Total', '0.00')
-        iva = '0.00'
-        impuestos = root.find('cfdi:Impuestos', ns)
-        if impuestos is not None:
-            traslados = impuestos.find('cfdi:Traslados', ns)
-            if traslados is not None:
-                for traslado in traslados.findall('cfdi:Traslado', ns):
-                    if traslado.get('Impuesto') == '002':
-                        iva = traslado.get('Importe', '0.00')
-                        break
-        forma_pago_cod = root.get('FormaPago', '99')
-        forma_pago_desc = FORMAS_PAGO.get(forma_pago_cod, f"{forma_pago_cod} - Desconocido")
-        metodo_pago_cod = root.get('MetodoPago', 'PPD')
-        metodo_pago_desc = METODOS_PAGO.get(metodo_pago_cod, f"{metodo_pago_cod} - Desconocido")
-        datos = {
-            'rfc_emisor': rfc_emisor_xml,
-            'rfc_receptor': rfc_receptor,
-            'folio': root.get('Folio'),
-            'uuid': None,
-            'fecha_comprobante': root.get('Fecha')[:10] if root.get('Fecha') else None,
-            'total': total,
-            'iva': iva,
-            'suma': f"{float(subtotal) + float(iva):.2f}",
-            'status_sat': 'R',
-            'moneda': root.get('Moneda', 'MXN'),
-            'tipo_cambio': root.get('TipoCambio', '1.0'),
-            'forma_pago': forma_pago_desc,
-            'metodo_pago': metodo_pago_desc,
-            'fecha_timbrado': None,
-            'saldo_pendiente': total,
-            'nombre_emisor': nombre_emisor,
-            'nombre_receptor': nombre_receptor,
-            'rfc_receptor': rfc_receptor,
-        }
-        timbre = root.find('cfdi:Complemento//tfd:TimbreFiscalDigital', ns)
-        if timbre is not None:
-            datos['uuid'] = timbre.get('UUID')
-            datos['fecha_timbrado'] = timbre.get('FechaTimbrado')[:10] if timbre.get('FechaTimbrado') else None
-        return datos
-
-    def procesar_complemento_pago_emitida(root, ns, rfc_emisor):
-        # Similar a procesar_complemento_pago pero para emitidos
-        emisor = root.find('cfdi:Emisor', ns)
-        rfc_emisor_xml = emisor.get('Rfc') if emisor is not None else ''
-        nombre_emisor = emisor.get('Nombre') if emisor is not None else ''
-        receptor = root.find('cfdi:Receptor', ns)
-        rfc_receptor = receptor.get('Rfc') if receptor is not None else ''
-        nombre_receptor = receptor.get('Nombre') if receptor is not None else ''
-        pagos = root.find('.//pago10:Pagos', ns) or root.find('.//pago20:Pagos', ns)
-        monto_total = '0.00'
-        fecha_pago = None
-        num_operacion = ''
-        uuids_relacionados = []
-        if pagos is not None:
-            pago = pagos.find('.//pago10:Pago', ns) or pagos.find('.//pago20:Pago', ns)
-            if pago is not None:
-                monto_total = pago.get('Monto', '0.00')
-                fecha_pago = pago.get('FechaPago')
-                num_operacion = pago.get('NumOperacion', '')
-                doctos = pago.findall('.//pago10:DoctoRelacionado', ns) or pago.findall('.//pago20:DoctoRelacionado', ns)
-                for docto in doctos:
-                    uuid = docto.get('IdDocumento')
-                    if uuid:
-                        uuids_relacionados.append(uuid)
-        forma_pago_cod = root.get('FormaPago', '99')
-        forma_pago_desc = FORMAS_PAGO.get(forma_pago_cod, f"{forma_pago_cod} - Desconocido")
-        datos = {
-            'rfc_emisor': rfc_emisor_xml,
-            'rfc_receptor': rfc_receptor,
-            'folio': root.get('Folio') or f"CP-{num_operacion}",
-            'uuid': None,
-            'fecha_comprobante': fecha_pago[:10] if fecha_pago else root.get('Fecha')[:10] if root.get('Fecha') else None,
-            'total': monto_total,
-            'moneda': root.get('Moneda', 'MXN'),
-            'forma_pago': forma_pago_desc,
-            'uso_cfdi': receptor.get('UsoCFDI', '') if receptor else '',
-            'uudirelacion': ','.join(uuids_relacionados),
-            'iva': '0.00',
-            'suma': monto_total,
-            'status_sat': 'R',
-            'tipo_cambio': root.get('TipoCambio', '1.0'),
-            'metodo_pago': '',
-            'fecha_timbrado': None,
-            'saldo_pendiente': monto_total,
-            'nombre_emisor': nombre_emisor,
-            'nombre_receptor': nombre_receptor
-        }
-        timbre = root.find('cfdi:Complemento//tfd:TimbreFiscalDigital', ns)
-        if timbre is not None:
-            datos['uuid'] = timbre.get('UUID')
-            datos['fecha_timbrado'] = timbre.get('FechaTimbrado')[:10] if timbre.get('FechaTimbrado') else None
-        return datos
-
-    def insertar_cfdi_emitido(db_name, datos, logs):
-        print(f"    Insertando CFDI emitido UUID {datos['uuid']}...", flush=True)
-        try:
-            with connections[db_name].cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM cfdi_emitidos WHERE uuid = %s", [datos['uuid']])
-                if cursor.fetchone()[0] > 0:
-                    logs.append(f"    UUID {datos['uuid']} ya existe, omitiendo.")
-                    return
-                cursor.execute("""
-                    INSERT INTO cfdi_emitidos (
-                        rfc_emisor, rfc_receptor, folio, uuid, fecha_comprobante, total, iva, suma,
-                        status_sat, moneda, tipo_cambio, forma_pago, metodo_pago, fecha_timbrado, saldo_pendiente
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, [
-                    datos['rfc_emisor'], datos['rfc_receptor'], datos['folio'], datos['uuid'],
-                    datos['fecha_comprobante'], datos['total'], datos['iva'], datos['suma'],
-                    datos['status_sat'], datos['moneda'], datos['tipo_cambio'], datos['forma_pago'],
-                    datos['metodo_pago'], datos['fecha_timbrado'], datos['saldo_pendiente']
-                ])
-            logs.append(f"    CFDI emitido insertado: UUID {datos['uuid']}")
-        except Exception as e:
-            logs.append(f"    Error insertando CFDI emitido: {str(e)}")
-
-    def registrar_cliente(db_name, rfc_cliente, nombre, rfc_empresa, logs):
-        """Registra un cliente en la tabla clientes (si no existe para esta empresa)."""
-        print(f"    Registrando cliente {rfc_cliente}...", flush=True)
-        try:
-            with connections[db_name].cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM clientes WHERE RFC = %s AND rfc_identy = %s", [rfc_cliente, rfc_empresa])
-                if cursor.fetchone()[0] > 0:
-                    print("      Cliente ya existe.", flush=True)
-                    return
-                cursor.execute("""
-                    INSERT INTO clientes (RFC, RazonSocial, Estatus, tipoProveedor, Correo, rfc_identy)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, [rfc_cliente, nombre, 'SinRespuesta', 'Otro', 'generico@generico.com', rfc_empresa])
-            logs.append(f"    Cliente registrado: {rfc_cliente} - {nombre}")
-            print(f"    Cliente registrado: {rfc_cliente} - {nombre}", flush=True)
-        except Exception as e:
-            logs.append(f"    Error registrando cliente: {str(e)}")
-            print(f"    Error registrando cliente: {str(e)}", flush=True)
-
-    # ========== Lógica principal ==========
+@csrf_exempt
+def usuario_revisar_peticiones_emitidas_async(request):
     db_name = request.session.get('empresa_db_name')
     rfc_empresa = request.session.get('empresa_rfc')
     empresa_nombre = request.session.get('empresa_nombre')
     if not db_name or not rfc_empresa or not empresa_nombre:
-        return JsonResponse({'status': 'error', 'message': 'No se ha identificado la empresa.'})
+        return JsonResponse({'status': 'error', 'message': 'No se ha identificado la empresa.'}, status=400)
 
-    print(f"\n=== REVISANDO PETICIONES EMITIDAS PARA EMPRESA {empresa_nombre} (RFC: {rfc_empresa}, DB: {db_name}) ===", flush=True)
+    task_id = str(uuid.uuid4())
+    crear_tarea(task_id, 'emitidas', db_name, rfc_empresa, empresa_nombre)
+    thread = threading.Thread(target=run_revisar_peticiones_emitidas_task, args=(task_id, db_name, rfc_empresa, empresa_nombre))
+    thread.daemon = True
+    thread.start()
+    return JsonResponse({'task_id': task_id})
 
-    try:
-        from empresas.models import EFirma
-        efirma = EFirma.objects.using('default').get(empresa=empresa_nombre, estatus='validado')
-    except EFirma.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'La empresa no tiene una FIEL válida cargada.'})
-
-    with connections[db_name].cursor() as cursor:
-        cursor.execute("""
-            SELECT idpeticion, fechainicio
-            FROM peticiones_sat
-            WHERE rfc = %s AND estatuspeticion = 0 AND tipo = 'E'
-        """, [rfc_empresa])
-        peticiones_descarga = cursor.fetchall()
-        cursor.execute("""
-            SELECT idpeticion, fechainicio
-            FROM peticiones_sat
-            WHERE rfc = %s AND estatuspeticion = 1 AND cargadoxml = 0 AND tipo = 'E'
-        """, [rfc_empresa])
-        peticiones_procesar = cursor.fetchall()
-
-    logs = []
-    total_descargas = 0
-    total_procesados = 0
-
-    # ========== 1. Descarga ==========
-    for id_peticion, fechainicio in peticiones_descarga:
-        logs.append(f"Verificando petición emitida {id_peticion}...")
-        try:
-            if isinstance(fechainicio, date):
-                fecha = fechainicio
-            else:
-                fecha = datetime.strptime(fechainicio, '%Y-%m-%d').date()
-            cer_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_cer)
-            key_path = os.path.join(settings.MEDIA_ROOT, efirma.archivo_key)
-            if not os.path.exists(cer_path) or not os.path.exists(key_path):
-                logs.append("  Archivos FIEL no encontrados.")
-                continue
-            password = loads(efirma.password)
-            with open(cer_path, 'rb') as cer_file, open(key_path, 'rb') as key_file:
-                signer = Signer.load(certificate=cer_file.read(), key=key_file.read(), password=password)
-            sat = SAT(signer=signer)
-            respuesta = sat.recover_comprobante_status(id_peticion)
-            estado = respuesta.get("EstadoSolicitud")
-            if estado == EstadoSolicitud.TERMINADA:
-                ids_paquetes = respuesta.get('IdsPaquetes', [])
-                if ids_paquetes:
-                    folder = os.path.join(settings.MEDIA_ROOT, 'cfdi', rfc_empresa, str(fecha.year), f"{fecha.month:02d}")
-                    os.makedirs(folder, exist_ok=True)
-                    descargados = 0
-                    for id_paquete in ids_paquetes:
-                        try:
-                            _, paquete_base64 = sat.recover_comprobante_download(id_paquete)
-                            if paquete_base64 is None:
-                                logs.append(f"  Paquete {id_paquete} no disponible (None).")
-                                continue
-                            paquete_bytes = base64.b64decode(paquete_base64)
-                            zip_path = os.path.join(folder, f"{id_paquete}.zip")
-                            with open(zip_path, 'wb') as f:
-                                f.write(paquete_bytes)
-                            descargados += 1
-                            logs.append(f"  Paquete {id_paquete} descargado.")
-                        except Exception as e:
-                            logs.append(f"  Error descargando paquete {id_paquete}: {str(e)}")
-                    if descargados > 0:
-                        with connections[db_name].cursor() as cursor_upd:
-                            cursor_upd.execute("UPDATE peticiones_sat SET estatuspeticion = 1 WHERE idpeticion = %s", [id_peticion])
-                        logs.append(f"  Petición emitida {id_peticion} marcada como descargada ({descargados} paquete(s)).")
-                        total_descargas += 1
-                    else:
-                        logs.append("  No se pudo descargar ningún paquete. La petición permanece pendiente.")
-                else:
-                    logs.append("  Petición terminada sin paquetes.")
-            elif estado in (EstadoSolicitud.ACEPTADA, EstadoSolicitud.EN_PROCESO):
-                logs.append("  Petición aún en proceso (no hay respuesta del SAT).")
-            else:
-                logs.append(f"  Petición falló: {respuesta.get('CodEstatus')} - {respuesta.get('Mensaje')}")
-        except Exception as e:
-            logs.append(f"  Error en petición {id_peticion}: {str(e)}")
-
-    # ========== 2. Procesamiento XML ==========
-    for id_peticion, fechainicio in peticiones_procesar:
-        logs.append(f"Procesando XML de petición emitida {id_peticion}...")
-        try:
-            if isinstance(fechainicio, date):
-                fecha = fechainicio
-            else:
-                fecha = datetime.strptime(fechainicio, '%Y-%m-%d').date()
-            zip_folder = os.path.join(settings.MEDIA_ROOT, 'cfdi', rfc_empresa, str(fecha.year), f"{fecha.month:02d}")
-            id_peticion_mayus = id_peticion.upper()
-            zips = glob.glob(os.path.join(zip_folder, f"{id_peticion_mayus}_*.zip"))
-            if not zips:
-                logs.append(f"  No se encontraron ZIP para la petición {id_peticion} en {zip_folder}")
-                continue
-            for zip_path in zips:
-                logs.append(f"  Procesando ZIP: {os.path.basename(zip_path)}")
-                temp_dir = tempfile.mkdtemp()
-                try:
-                    with zipfile.ZipFile(zip_path, 'r') as zf:
-                        zf.extractall(temp_dir)
-                    xml_files = []
-                    for root_dir, _, files in os.walk(temp_dir):
-                        for file in files:
-                            if file.lower().endswith('.xml'):
-                                xml_files.append(os.path.join(root_dir, file))
-                    if not xml_files:
-                        logs.append("    No se encontraron XML en el ZIP.")
-                    for xml_path in xml_files:
-                        datos = extraer_datos_factura_emitida(xml_path, rfc_empresa)
-                        if datos and 'error' not in datos:
-                            insertar_cfdi_emitido(db_name, datos, logs)
-                            if datos.get('rfc_receptor') and datos.get('nombre_receptor'):
-                                registrar_cliente(db_name, datos['rfc_receptor'], datos['nombre_receptor'], rfc_empresa, logs)
-                        else:
-                            error_msg = datos.get('error', 'Desconocido') if datos else 'No se extrajeron datos'
-                            logs.append(f"    Error al extraer datos de {os.path.basename(xml_path)}: {error_msg}")
-                except Exception as e:
-                    logs.append(f"    Error procesando ZIP: {str(e)}")
-                finally:
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-            if zips:
-                with connections[db_name].cursor() as cursor_upd:
-                    cursor_upd.execute("UPDATE peticiones_sat SET cargadoxml = 1 WHERE idpeticion = %s", [id_peticion])
-                logs.append("  Petición emitida marcada como procesada (XML cargados).")
-                total_procesados += 1
-        except Exception as e:
-            logs.append(f"  Error procesando petición {id_peticion}: {str(e)}")
-
-    if total_descargas == 0 and total_procesados == 0:
-        status = 'warning'
-        message = 'No se encontraron peticiones emitidas pendientes o no se pudo descargar ningún paquete.'
-    else:
-        status = 'ok'
-        message = f'Proceso completado. Descargas: {total_descargas}, XML procesados: {total_procesados}.'
-
-    return JsonResponse({'status': status, 'message': message, 'logs': logs})
-
-
+@usuario_required
+def usuario_revisar_peticiones_emitidas_status(request, task_id):
+    tarea = obtener_tarea(task_id)
+    if not tarea:
+        return JsonResponse({'error': 'Tarea no encontrada'}, status=404)
+    return JsonResponse(tarea)
 
 
 

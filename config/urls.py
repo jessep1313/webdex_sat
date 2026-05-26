@@ -102,6 +102,8 @@ urlpatterns = [
     path('usuario/revisar-peticiones-emitidas/status/<str:task_id>/', core_views.usuario_revisar_peticiones_emitidas_status, name='usuario_revisar_peticiones_emitidas_status'),
 
 
+    path('usuario/revisar-peticiones-emitidas/async/', core_views.usuario_revisar_peticiones_emitidas_async, name='usuario_revisar_peticiones_emitidas_async'),
+    path('usuario/revisar-peticiones-emitidas/status/<str:task_id>/', core_views.usuario_revisar_peticiones_emitidas_status, name='usuario_revisar_peticiones_emitidas_status'),
 
     # Proveedores (usuario normal)
     path('usuario/proveedores/', core_views.proveedores_lista, name='usuario_proveedores_lista'),
