@@ -6043,7 +6043,7 @@ def obtener_opinion_sat(rfc, download_dir, logs, update_callback=None):
 
 # ========== TAREA ASÍNCRONA PARA OPINIONES (con BD) ==========
 
-def run_opinion_task(task_id, rfc, tipo_entidad, db_name, rfc_empresa, empresa_nombre):
+def run_opinion_task____(task_id, rfc, tipo_entidad, db_name, rfc_empresa, empresa_nombre):
     """
     Ejecuta la obtención de opinión del SAT en segundo plano.
     """
@@ -6152,6 +6152,130 @@ def run_opinion_task(task_id, rfc, tipo_entidad, db_name, rfc_empresa, empresa_n
         # Opcional: puedes imprimir el traceback en los logs del servidor
         import traceback
         traceback.print_exc()
+
+
+# ========== TAREA ASÍNCRONA PARA OPINIONES (con BD y logs en tiempo real) ==========
+
+def run_opinion_task(task_id, rfc, tipo_entidad, db_name, rfc_empresa, empresa_nombre):
+    """
+    Ejecuta la obtención de opinión del SAT en segundo plano,
+    actualizando la base de datos en cada paso.
+    """
+    logs = []
+    
+    # Función callback que se llamará cada vez que se agregue un log
+    def actualizar_logs_en_bd(mensaje, logs_actualizados):
+        # Actualiza la tarea con la lista completa de logs
+        actualizar_tarea(task_id, logs=logs_actualizados)
+    
+    try:
+        from empresas.models import EFirma
+        from selenium import webdriver
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from webdriver_manager.chrome import ChromeDriverManager
+        import time, re, shutil, os, base64
+        from datetime import datetime
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+        from django.conf import settings
+
+        # Estado inicial
+        actualizar_tarea(task_id, logs=logs, estado='en_proceso')
+        logs.append("🚀 Iniciando proceso de obtención de opinión del SAT...")
+        actualizar_tarea(task_id, logs=logs)
+
+        # Crear directorio temporal
+        temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_opinions', rfc)
+        os.makedirs(temp_dir, exist_ok=True)
+        logs.append("📁 Directorio temporal creado")
+        actualizar_tarea(task_id, logs=logs)
+
+        # Importar la función obtener_opinion_sat (ya modificada para aceptar callback)
+        from .views import obtener_opinion_sat
+
+        # Llamar a obtener_opinion_sat pasando el callback
+        resultado = obtener_opinion_sat(rfc, temp_dir, logs, update_callback=actualizar_logs_en_bd)
+
+        if resultado is None:
+            raise Exception("No se pudo completar la operación")
+
+        tabla_map = {
+            'proveedor': 'proveedores',
+            'proveedor_sin_cfdi': 'proveedores_sin_cfdi',
+            'cliente': 'clientes',
+            'cliente_sin_cfdi': 'clientes_sin_cfdi'
+        }
+        tabla = tabla_map.get(tipo_entidad)
+        if not tabla:
+            raise Exception(f"Tipo de entidad inválido: {tipo_entidad}")
+
+        with connections[db_name].cursor() as cursor:
+            if 'pdf_path' in resultado:
+                # Guardar PDF
+                año = resultado['fecha'].year
+                mes = resultado['fecha'].month
+                ruta_destino = os.path.join('opinion', rfc, str(año), f"{mes:02d}")
+                nombre_archivo = f"{rfc}_{resultado['fecha'].strftime('%Y%m%d')}.pdf"
+                destino = default_storage.save(
+                    os.path.join(ruta_destino, nombre_archivo),
+                    ContentFile(open(resultado['pdf_path'], 'rb').read())
+                )
+                logs.append(f"📁 PDF guardado en: {destino}")
+                actualizar_tarea(task_id, logs=logs)
+
+                # Insertar historial
+                cursor.execute("""
+                    INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, tipo_entidad, destino, resultado['resultado'], resultado['fecha']])
+
+                # Actualizar tabla principal
+                sql = f"""
+                    UPDATE {tabla}
+                    SET Estatus = %s, fecha_opinion = %s, opinion = 1
+                    WHERE RFC = %s AND rfc_identy = %s
+                """
+                cursor.execute(sql, [resultado['resultado'], resultado['fecha'], rfc, rfc_empresa])
+                logs.append(f"✅ Registro actualizado con PDF (resultado: {resultado['resultado']})")
+                actualizar_tarea(task_id, logs=logs)
+
+                # Eliminar archivo temporal
+                os.remove(resultado['pdf_path'])
+            else:
+                # Sin PDF (solo estatus)
+                fecha_actual = resultado['fecha']
+                sql = f"""
+                    UPDATE {tabla}
+                    SET Estatus = %s, fecha_opinion = %s, opinion = 0
+                    WHERE RFC = %s AND rfc_identy = %s
+                """
+                cursor.execute(sql, [resultado['status'], fecha_actual, rfc, rfc_empresa])
+                logs.append(f"✅ Registro actualizado sin PDF (estatus: {resultado['status']})")
+                actualizar_tarea(task_id, logs=logs)
+
+                cursor.execute("""
+                    INSERT INTO opiniones_historial (rfc, tipo, archivo_pdf, resultado, fecha_opinion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [rfc, tipo_entidad, '', resultado['status'], fecha_actual])
+
+        actualizar_tarea(task_id, logs=logs, estado='completado', success=True)
+        logs.append("🎉 Proceso terminado correctamente")
+        actualizar_tarea(task_id, logs=logs)
+
+    except Exception as e:
+        error_msg = str(e)
+        logs.append(f"❌ Error: {error_msg}")
+        actualizar_tarea(task_id, logs=logs, estado='error', success=False, error=error_msg)
+        # Opcional: imprimir traceback en los logs del servidor
+        import traceback
+        traceback.print_exc()
+
+
+
 
 @usuario_required
 @csrf_exempt
