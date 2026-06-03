@@ -445,6 +445,7 @@ def usuario_metrics_data(request):
     db_name = request.session.get('empresa_db_name')
     rfc_empresa = request.session.get('empresa_rfc')
     view = request.GET.get('view', 'general')
+    print(f"View: {view}")
 
     if not db_name or not rfc_empresa:
         return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
