@@ -1,14 +1,141 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Login | Plataforma Fiscal</title>
-    <link rel="stylesheet" href="{% static 'adminlte/dist/css/adminlte.min.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inicio de Sesión - Plataforma Fiscal</title>
+    
+    <!-- Tipografía Work Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        /* Overlay ocupa toda la pantalla y se muestra sobre todo */
+        :root {
+            --brand-blue: #005EC4;
+            --brand-blue-hover: #004693;
+            --text-dark: #333333;
+        }
+
+        body {
+            font-family: 'Work Sans', sans-serif;
+            background-color: #FFFFFF;
+            color: var(--text-dark);
+        }
+
+        /* === PANEL IZQUIERDO (IMAGEN) === */
+        .split-image-container {
+            background-image: 
+                linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0) 25%),
+                url('https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?w=1000&q=70&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            height: 100%;
+        }
+
+        .brand-logo-container {
+            position: absolute;
+            top: 3rem;
+            left: 3rem;
+            z-index: 10;
+        }
+
+        .brand-logo-container img {
+            height: auto;
+            width: 240px; 
+            max-width: 80vw;
+        }
+
+        /* === PANEL DERECHO (FORMULARIO) === */
+        .login-form-container {
+            max-width: 480px;
+            width: 100%;
+            padding: 0 2rem;
+        }
+
+        .login-title {
+            color: var(--brand-blue);
+            font-weight: 500;
+            font-size: 2.25rem;
+            line-height: 1.2;
+            margin-bottom: 2rem;
+        }
+
+        .form-instruction {
+            font-size: 0.95rem;
+            color: #475569;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-floating > .form-control {
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-shadow: none !important;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-floating > .form-control:focus {
+            border-color: var(--brand-blue);
+        }
+
+        .form-floating > label {
+            color: #94a3b8;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            z-index: 5;
+            padding: 0;
+        }
+
+        .password-toggle:hover {
+            color: var(--brand-blue);
+        }
+
+        .btn-submit {
+            background-color: var(--brand-blue);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.8rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .btn-submit:hover {
+            background-color: var(--brand-blue-hover);
+        }
+
+        .help-text {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 3rem;
+            font-weight: 500;
+        }
+
+        .help-link {
+            color: var(--brand-blue);
+            text-decoration: none;
+        }
+
+        .help-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Overlay de carga (spinner) */
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -33,42 +160,82 @@
         }
     </style>
 </head>
-<body class="hold-transition login-page">
+<body>
 
-<div class="login-box">
-    <img src="{% static 'adminlte/dist/assets/img/logoazul.png' %}"
-         alt="Logo"
-         class="brand-image img-circle elevation-3"
-         style="opacity: .8; width: 90%; height: auto;">
-    <div class="card">
-        <div class="card-body login-card-body" id="login-card">
-            <p class="login-box-msg">Inicia sesión</p>
-            <form method="post" id="loginForm">
-                {% csrf_token %}
-                <div class="input-group mb-3">
-                    <input type="email" name="email" class="form-control" placeholder="Correo electrónico" required>
-                    <div class="input-group-append">
-                        <div class="input-group-text"><span class="fas fa-envelope"></span></div>
+<div class="container-fluid vh-100 p-0">
+    <div class="row g-0 h-100">
+        
+        <!-- MITAD IZQUIERDA: IMAGEN (se oculta en móviles) -->
+        <div class="col-md-6 d-none d-md-block split-image-container">
+            <div class="brand-logo-container">
+                <!-- Reemplaza con tu logo (puedes usar una URL externa o local) -->
+                <img src="https://venkelcargo.com/files/2025/11/13/Venkel-Blanco.png" alt="Venkel Cargo Logo">
+            </div>
+        </div>
+
+        <!-- MITAD DERECHA: FORMULARIO -->
+        <div class="col-12 col-md-6 d-flex align-items-center justify-content-center position-relative">
+            
+            <!-- Logo versión móvil (solo visible en pantallas pequeñas) -->
+            <div class="d-md-none position-absolute top-0 start-0 mt-4 ms-4">
+                <img src="https://venkelcargo.com/files/2025/11/13/Venkel-Blanco.png" alt="Venkel Cargo" style="height: 50px; filter: invert(1) hue-rotate(180deg);">
+            </div>
+
+            <div class="login-form-container">
+                
+                <h1 class="login-title">
+                    Bienvenido a la<br>
+                    Plataforma de opinión<br>de cumplimiento
+                </h1>
+                
+                <p class="form-instruction">Ingresa tu usuario y contraseña para acceder</p>
+
+                <form method="post" id="loginForm">
+                    {% csrf_token %}
+                    <!-- Input Email / Usuario -->
+                    <div class="form-floating mb-3">
+                        <input type="email" name="email" class="form-control check-input" id="email" placeholder="Correo electrónico" required>
+                        <label for="email">Correo electrónico</label>
                     </div>
-                </div>
-                <div class="input-group mb-3">
-                    <input type="password" name="password" class="form-control" placeholder="Contraseña" required>
-                    <div class="input-group-append">
-                        <div class="input-group-text"><span class="fas fa-lock"></span></div>
+
+                    <!-- Input Contraseña con toggle -->
+                    <div class="form-floating mb-4 position-relative">
+                        <input type="password" name="password" class="form-control check-input" id="password" placeholder="Contraseña" required>
+                        <label for="password">Contraseña</label>
+                        <button type="button" class="password-toggle" id="togglePasswordBtn" aria-label="Mostrar contraseña">
+                            <i class="fas fa-eye" id="toggleIcon"></i>
+                        </button>
                     </div>
+
+                    <!-- Botón Continuar -->
+                    <button type="submit" class="btn btn-submit w-100" id="submitBtn">
+                        Continuar
+                    </button>
+                </form>
+
+                <!-- Mensajes de error de Django -->
+                {% if messages %}
+                    <div class="mt-3">
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- Footer -->
+                <div class="help-text">
+                    ¿Problemas para ingresar? Escríbenos a <a href="mailto:soporte@venkelcargo.com" class="help-link">soporte@venkelcargo.com</a>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
-            </form>
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }} mt-3">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
+
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Overlay de carga (oculto por defecto) -->
+<!-- Overlay de carga (spinner) -->
 <div id="loadingOverlay" class="loading-overlay">
     <div class="loading-spinner">
         <i class="fas fa-spinner fa-spin fa-3x"></i>
@@ -76,13 +243,38 @@
     <div class="loading-text">Autenticando, por favor espere...</div>
 </div>
 
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    document.getElementById('loginForm').addEventListener('submit', function(e) {
-        // Mostrar overlay con spinner
-        document.getElementById('loadingOverlay').style.display = 'flex';
-        // Opcional: ocultar el formulario para dar sensación de que ya se está procesando
-        document.getElementById('login-card').style.opacity = '0.5';
-        // El formulario continúa su envío normal
+    document.addEventListener('DOMContentLoaded', function() {
+        const passwordInput = document.getElementById('password');
+        const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+        const toggleIcon = document.getElementById('toggleIcon');
+        const loginForm = document.getElementById('loginForm');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // Mostrar/ocultar contraseña
+        if (togglePasswordBtn) {
+            togglePasswordBtn.addEventListener('click', function() {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                if (type === 'text') {
+                    toggleIcon.classList.remove('fa-eye');
+                    toggleIcon.classList.add('fa-eye-slash');
+                } else {
+                    toggleIcon.classList.remove('fa-eye-slash');
+                    toggleIcon.classList.add('fa-eye');
+                }
+            });
+        }
+
+        // Mostrar overlay al enviar el formulario
+        loginForm.addEventListener('submit', function(e) {
+            loadingOverlay.style.display = 'flex';
+            // Opcional: atenuar el formulario
+            document.querySelector('.login-form-container').style.opacity = '0.6';
+            // El formulario se envía normalmente
+        });
     });
 </script>
 </body>

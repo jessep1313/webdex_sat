@@ -150,8 +150,17 @@
 </style>
 {% endblock %}
 
+
+
 {% block breadcrumb %}
-<li class="breadcrumb-item active">Configuración de correos</li>
+<li class="breadcrumb-item active">
+    <a href="{% url 'admin_correo_crear' %}" class="btn-header-primary" data-bs-toggle="tooltip" title="Nueva plantilla">
+
+        <button id="btnNuevo" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" title="Nuevo plantilla">
+                    <i class="bi bi-plus-lg me-1"></i> Nueva plantilla
+        </button>
+    </a>
+</li>
 {% endblock %}
 
 {% block content %}
@@ -163,9 +172,11 @@
                 <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
             </div>
+            <!------
             <a href="{% url 'admin_correo_crear' %}" class="btn-header-primary" data-bs-toggle="tooltip" title="Nueva plantilla">
                 <i class="bi bi-plus-lg"></i> Nueva
             </a>
+            -->
             <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel">
                 <i class="bi bi-file-earmark-excel"></i>
             </button>

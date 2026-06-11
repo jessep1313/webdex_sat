@@ -123,6 +123,15 @@
 </style>
 {% endblock %}
 
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">
+    <button id="btnNuevo" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" title="Nuevo cliente">
+                <i class="bi bi-plus-lg me-1"></i> Nuevo Cliente Prospectos
+    </button>
+</li>
+{% endblock %}
+
 {% block content %}
 <div class="custom-table-container">
     <div class="table-toolbar d-flex justify-content-between align-items-center">
@@ -132,9 +141,11 @@
                 <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
             </div>
+            <!-------
             <button class="btn-header-tertiary" id="btnNuevo" data-bs-toggle="tooltip" title="Nuevo cliente">
                 <i class="bi bi-plus-lg"></i>
             </button>
+            -->
             <button class="btn-header-tertiary" id="btnExportarPlantilla" data-bs-toggle="tooltip" title="Exportar plantilla CSV">
                 <i class="bi bi-download"></i>
             </button>
@@ -157,7 +168,7 @@
                     <th>Correo2</th>
                     <th>Correo3</th>
                     <th>Tipo Cliente</th>
-                    <th class="text-end">Acciones</th>
+                    <th >Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -170,7 +181,7 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Editar Cliente</h5>
+                <h5 class="modal-title">Nuevo Cliente Prospecto</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">

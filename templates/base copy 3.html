@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        /* === Variables y estilos === */
+        /* === Variables y estilos (exactamente igual que antes, sin cambios) === */
         :root {
             --primary-bg: #005EC4;
             --sidebar-bg: #005EC4;
@@ -180,7 +180,7 @@
             text-align: center;
         }
 
-        /* Flyout (hover cuando sidebar colapsado) */
+        /* Flyout */
         .sidebar:not(.sidebar-open) .nav-item .submenu {
             position: fixed;
             background-color: var(--sidebar-hover);
@@ -205,7 +205,7 @@
             padding: 10px 20px;
         }
 
-        /* Navbar superior */
+        /* Navbar */
         .navbar-custom {
             height: var(--topbar-height);
             background-color: #FFFFFF !important;
@@ -286,13 +286,7 @@
         .tooltip-inner { background-color: var(--submenu-bg); font-family: 'Work Sans', sans-serif; font-size: 0.85rem; }
         .bs-tooltip-end .tooltip-arrow::before { border-right-color: var(--submenu-bg); }
 
-        /* === CORRECCIÓN DE MODALES (para que se vean por encima del sidebar) === */
-        .modal {
-            z-index: 1100 !important;
-        }
-        .modal-backdrop {
-            z-index: 1090 !important;
-        }
+        
     </style>
 
     {% block extra_head %}{% endblock %}
@@ -320,7 +314,7 @@
                 </a>
             </div>
 
-            <!-- ========== SUPERADMIN ========== -->
+            <!-- SUPERADMIN -->
             {% if request.session.user_type == 'SA' %}
             <div class="nav-item">
                 <a href="#" class="nav-link-custom" data-has-submenu="true">
@@ -358,7 +352,7 @@
             </div>
             {% endif %}
 
-            <!-- ========== ADMINISTRADOR ========== -->
+            <!-- ADMINISTRADOR -->
             {% if request.session.user_type == 'A' %}
             <div class="nav-item">
                 <a href="#" class="nav-link-custom" data-has-submenu="true">
@@ -384,7 +378,7 @@
             </div>
             {% endif %}
 
-            <!-- ========== USUARIO NORMAL ========== -->
+            <!-- USUARIO NORMAL -->
             {% if request.session.user_type == 'US' %}
             <div class="nav-item">
                 <a href="#" class="nav-link-custom" data-has-submenu="true">
@@ -578,16 +572,19 @@
             const parentItem = this.closest('.nav-item');
             const submenu = parentItem.querySelector('.submenu');
             if (submenu) {
+                // Cerrar otros submenús abiertos (mantener solo uno)
                 document.querySelectorAll('.submenu.show').forEach(s => {
                     if (s !== submenu) s.classList.remove('show');
                 });
                 submenu.classList.toggle('show');
+                // Limpiar posibles estilos de flyout
                 submenu.style.position = '';
                 submenu.style.top = '';
                 submenu.style.left = '';
             }
         }
 
+        // Configurar clics en modo expandido
         function setupExpandidoClick() {
             const triggers = document.querySelectorAll('.nav-item > .nav-link-custom[data-has-submenu="true"]');
             triggers.forEach(trigger => {
@@ -596,7 +593,15 @@
             });
         }
 
-        // ----- FLYOUT -----
+        // ----- FLYOUT (hover cuando sidebar colapsado) -----
+        function closeAllFlyouts() {
+            if (currentFlyoutSubmenu) {
+                currentFlyoutSubmenu.style.display = '';
+                currentFlyoutSubmenu = null;
+            }
+            if (flyoutTimeout) clearTimeout(flyoutTimeout);
+        }
+
         function navItemMouseEnter(e) {
             const sidebar = document.getElementById('sidebar');
             if (sidebar.classList.contains('sidebar-open')) return;
@@ -604,6 +609,7 @@
             const submenu = navItem.querySelector('.submenu');
             if (!submenu) return;
 
+            // Cerrar cualquier flyout anterior
             if (currentFlyoutSubmenu && currentFlyoutSubmenu !== submenu) {
                 currentFlyoutSubmenu.style.display = '';
                 currentFlyoutSubmenu = null;
@@ -623,6 +629,7 @@
             if (sidebar.classList.contains('sidebar-open')) return;
             const submenu = this.querySelector('.submenu');
             if (!submenu) return;
+            // Cerrar después de 200 ms (permite entrar al submenu)
             flyoutTimeout = setTimeout(() => {
                 if (currentFlyoutSubmenu === submenu) {
                     submenu.style.display = '';
@@ -647,6 +654,8 @@
         function setupFlyout() {
             const sidebar = document.getElementById('sidebar');
             if (!sidebar) return;
+
+            // Remover listeners antiguos para evitar duplicados
             const navItems = document.querySelectorAll('.nav-item');
             navItems.forEach(item => {
                 item.removeEventListener('mouseenter', navItemMouseEnter);
@@ -657,6 +666,8 @@
                     sub.removeEventListener('mouseleave', submenuMouseLeave);
                 }
             });
+
+            // Agregar nuevos listeners
             navItems.forEach(item => {
                 item.addEventListener('mouseenter', navItemMouseEnter);
                 item.addEventListener('mouseleave', navItemMouseLeave);
@@ -670,6 +681,7 @@
 
         // Inicialización
         document.addEventListener('DOMContentLoaded', function() {
+            // Tooltips
             const tooltipItems = document.querySelectorAll('.nav-item a[data-bs-toggle="tooltip"]');
             tooltipItems.forEach(el => new bootstrap.Tooltip(el, { trigger: 'hover' }));
 
@@ -681,14 +693,6 @@
 
             setupExpandidoClick();
             setupFlyout();
-        });
-
-        // ====== SOLUCIÓN GLOBAL PARA MODALES ======
-        // Mover cualquier modal al body cuando se abre, para evitar problemas de contexto de apilamiento
-        $(document).on('show.bs.modal', '.modal', function () {
-            const modal = $(this);
-            if (modal.parent().is('body')) return;
-            modal.appendTo('body');
         });
     </script>
 
