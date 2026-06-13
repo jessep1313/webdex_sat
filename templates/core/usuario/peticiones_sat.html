@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}Peticiones SAT CFDI{% endblock %}
-{% block content_title %}Solicitar CFDI al SAT {% endblock %}
+{% block content_title %}<span style="color: #005EC4;">Solicitar CFDI al SAT</span>{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -101,8 +101,10 @@
                 <label for="tipo" class="form-label">Tipo de solicitud</label>
                 {{ form.tipo }}
             </div>
-            <button type="submit" class="btn btn-primary" style="background-color:#005EC4; border:none;">Solicitar</button>
-        </form>
+    <div class="d-flex justify-content-end mt-3">
+                <button type="submit" class="btn btn-primary" style="background-color:#005EC4; border:none;">Solicitar</button>
+            </div>
+    </form>
     </div>
 </div>
 

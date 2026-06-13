@@ -2,7 +2,8 @@
 {% load static %}
 
 {% block title %}Proveedores prospectos{% endblock %}
-{% block content_title %}Catálogo de Proveedores Prospectos{% endblock %}
+{% block content_title %}<span style="color: #005EC4;">Catálogo de Proveedores Prospectos</span>{% endblock %}
+
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -115,7 +116,7 @@
 
     /* DataTables sobreescritura */
     .dataTables_wrapper .dataTables_filter {
-        display: none;  /* Ocultamos el buscador nativo */
+        display: none;
     }
 
     .dataTables_wrapper .dataTables_length,
@@ -163,14 +164,94 @@
         max-width: 90%;
     }
 
-
+    /* ========== ESTILOS DEL STEPPER (tomados del ejemplo) ========== */
+    .stepper-wrapper {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        position: relative;
+        padding: 0 1rem;
+    }
+    .stepper-wrapper::before {
+        content: '';
+        position: absolute;
+        top: 18px;
+        left: 10%;
+        right: 10%;
+        height: 2px;
+        background: #e9ecef;
+        z-index: 1;
+    }
+    .stepper-progress {
+        position: absolute;
+        top: 18px;
+        left: 10%;
+        height: 2px;
+        background: #005EC4;
+        z-index: 2;
+        transition: width 0.4s ease;
+        width: 0%;
+    }
+    .step-item {
+        position: relative;
+        z-index: 3;
+        text-align: center;
+        flex: 1;
+    }
+    .step-circle {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid #e9ecef;
+        color: #6c757d;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        margin-bottom: 8px;
+        background-color: #f8f9fa;
+    }
+    .step-label {
+        display: block;
+        font-size: 0.85rem;
+        color: #6c757d;
+        transition: all 0.3s ease;
+    }
+    .step-item.active .step-circle {
+        border-color: #005EC4;
+        background-color: #005EC4;
+        color: #fff;
+        box-shadow: 0 0 0 4px rgba(0, 94, 196, 0.25);
+    }
+    .step-item.active .step-label {
+        color: #005EC4;
+    }
+    .step-item.completed .step-circle {
+        border-color: #005EC4;
+        background-color: #005EC4;
+        color: #fff;
+    }
+    .step-item.completed .step-number { display: none; }
+    .step-item:not(.completed) .step-icon { display: none; }
+    .step-content {
+        display: none;
+        animation: fadeIn 0.4s ease;
+    }
+    .step-content.active {
+        display: block;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 </style>
 {% endblock %}
 
 {% block breadcrumb %}
 <li class="breadcrumb-item active">
-    <button id="btnNuevo" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" title="Nuevo prospectos">
-                <i class="bi bi-plus-lg me-1"></i> Nuevo Proveedor Prospectos
+    <button id="btnNuevo" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" title="Nuevo prospecto">
+        <i class="bi bi-plus-lg me-1"></i> Agregar Nuevo
     </button>
 </li>
 {% endblock %}
@@ -184,19 +265,14 @@
                 <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
             </div>
-            <!---
-            <button class="btn-header-tertiary" id="btnNuevo" data-bs-toggle="tooltip" title="Nuevo proveedor">
-                <i class="bi bi-plus-lg"></i>
+            <button class="btn-header-primary" id="btnExportarPlantilla" data-bs-toggle="tooltip" title="Exportar plantilla CSV">
+                <i class="bi bi-download"></i> Plantilla
             </button>
-            -->
-            <button class="btn-header-tertiary" id="btnExportarPlantilla" data-bs-toggle="tooltip" title="Exportar plantilla CSV">
-                <i class="bi bi-download"></i>
+            <button class="btn-header-primary" id="btnImportar" data-bs-toggle="tooltip" title="Importar CSV">
+                <i class="bi bi-upload"></i> Importar
             </button>
-            <button class="btn-header-tertiary" id="btnImportar" data-bs-toggle="tooltip" title="Importar CSV">
-                <i class="bi bi-upload"></i>
-            </button>
-            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
-                <i class="bi bi-file-earmark-excel"></i>
+            <button class="btn-header-primary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
+                <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
             <input type="file" id="fileImport" style="display: none;" accept=".csv">
         </div>
@@ -219,116 +295,157 @@
     </div>
 </div>
 
-<!-- Modal para editar/crear proveedor (sin cambio funcional) -->
-<div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Nuevo Proveedor Prospecto</h5>
+<!-- ==================== MODAL CON STEPPER (NUEVO/EDITAR) ==================== -->
+<div class="modal fade" id="modalEditar" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
+                <h4 class="modal-title text-dark" id="modalLabel">Agregar Proveedor Prospecto</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body px-4 py-4">
+                <!-- Stepper -->
+                <div class="stepper-wrapper">
+                    <div class="stepper-progress" id="stepperProgress"></div>
+                    <div class="step-item active" id="indicator-1">
+                        <div class="step-circle">
+                            <span class="step-number">1</span>
+                            <i class="bi bi-check-lg step-icon"></i>
+                        </div>
+                        <span class="step-label">Datos Fiscales</span>
+                    </div>
+                    <div class="step-item" id="indicator-2">
+                        <div class="step-circle">
+                            <span class="step-number">2</span>
+                            <i class="bi bi-check-lg step-icon"></i>
+                        </div>
+                        <span class="step-label">Contacto</span>
+                    </div>
+                    <div class="step-item" id="indicator-3">
+                        <div class="step-circle">
+                            <span class="step-number">3</span>
+                            <i class="bi bi-check-lg step-icon"></i>
+                        </div>
+                        <span class="step-label">Dirección</span>
+                    </div>
+                </div>
+
                 <form id="formEditar">
-                    <input type="hidden" id="edit_id">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">RFC</label>
-                            <input type="text" id="edit_RFC" class="form-control" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Razón Social</label>
-                            <input type="text" id="edit_RazonSocial" class="form-control" required>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Correo</label>
-                            <input type="email" id="edit_Correo" class="form-control">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Correo 2</label>
-                            <input type="email" id="edit_Correo2" class="form-control">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Correo 3</label>
-                            <input type="email" id="edit_Correo3" class="form-control">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tipo Proveedor</label>
-                            <input type="text" id="edit_tipoProveedor" class="form-control">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Nombre Comercial</label>
-                            <input type="text" id="edit_Nombrecomercial" class="form-control">
+                    <input type="hidden" id="edit_id" value="">
+                    <!-- PASO 1: Datos Fiscales y Comerciales -->
+                    <div class="step-content active" id="step-1">
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">RFC *</label>
+                                <input type="text" id="edit_RFC" class="form-control text-uppercase" placeholder="Ej. XAXX010101000" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">Razón Social *</label>
+                                <input type="text" id="edit_RazonSocial" class="form-control" placeholder="Nombre completo o razón social" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">Tipo Proveedor</label>
+                                <input type="text" id="edit_tipoProveedor" class="form-control" placeholder="Ej. Nacional, Internacional">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">Nombre Comercial</label>
+                                <input type="text" id="edit_Nombrecomercial" class="form-control" placeholder="Nombre comercial (opcional)">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">Tipo Persona</label>
+                                <input type="text" id="edit_tipoPersona" class="form-control" placeholder="Física / Moral">
+                            </div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Nombre</label>
-                            <input type="text" id="edit_nombre" class="form-control">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Apellido Paterno</label>
-                            <input type="text" id="edit_apellidoPaterno" class="form-control">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Apellido Materno</label>
-                            <input type="text" id="edit_apellidoMaterno" class="form-control">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Tipo Persona</label>
-                            <input type="text" id="edit_tipoPersona" class="form-control">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Código Postal</label>
-                            <input type="text" id="edit_codigoPostal" class="form-control">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Teléfono</label>
-                            <input type="text" id="edit_telefono" class="form-control">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Calle</label>
-                            <input type="text" id="edit_calle" class="form-control">
-                        </div>
-                        <div class="col-md-2 mb-3">
-                            <label class="form-label">Número Interior</label>
-                            <input type="text" id="edit_noInt" class="form-control">
-                        </div>
-                        <div class="col-md-2 mb-3">
-                            <label class="form-label">Número Exterior</label>
-                            <input type="text" id="edit_noExt" class="form-control">
-                        </div>
-                        <div class="col-md-2 mb-3">
-                            <label class="form-label">Colonia</label>
-                            <input type="text" id="edit_colonia" class="form-control">
+
+                    <!-- PASO 2: Contacto -->
+                    <div class="step-content" id="step-2">
+                        <div class="row g-4">
+                            <div class="col-md-4">
+                                <label class="form-label text-secondary small mb-1">Correo Principal</label>
+                                <input type="email" id="edit_Correo" class="form-control" placeholder="correo@ejemplo.com">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-secondary small mb-1">Correo Secundario 1</label>
+                                <input type="email" id="edit_Correo2" class="form-control" placeholder="Opcional">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-secondary small mb-1">Correo Secundario 2</label>
+                                <input type="email" id="edit_Correo3" class="form-control" placeholder="Opcional">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-secondary small mb-1">Nombre(s)</label>
+                                <input type="text" id="edit_nombre" class="form-control" placeholder="Nombre del contacto">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-secondary small mb-1">Apellido Paterno</label>
+                                <input type="text" id="edit_apellidoPaterno" class="form-control" placeholder="Apellido paterno">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-secondary small mb-1">Apellido Materno</label>
+                                <input type="text" id="edit_apellidoMaterno" class="form-control" placeholder="Apellido materno (opcional)">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">Teléfono</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-telephone"></i></span>
+                                    <input type="text" id="edit_telefono" class="form-control" placeholder="10 dígitos">
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Estado</label>
-                            <input type="text" id="edit_estado" class="form-control">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Municipio</label>
-                            <input type="text" id="edit_municipio" class="form-control">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Ciudad</label>
-                            <input type="text" id="edit_ciudad" class="form-control">
+
+                    <!-- PASO 3: Dirección -->
+                    <div class="step-content" id="step-3">
+                        <div class="row g-4">
+                            <div class="col-md-3">
+                                <label class="form-label text-secondary small mb-1">Código Postal</label>
+                                <input type="text" id="edit_codigoPostal" class="form-control" placeholder="Ej. 01000">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label text-secondary small mb-1">Colonia</label>
+                                <input type="text" id="edit_colonia" class="form-control" placeholder="Colonia">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-secondary small mb-1">Estado</label>
+                                <input type="text" id="edit_estado" class="form-control" placeholder="Estado">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">Calle</label>
+                                <input type="text" id="edit_calle" class="form-control" placeholder="Calle">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-secondary small mb-1">Núm. Exterior</label>
+                                <input type="text" id="edit_noExt" class="form-control" placeholder="Núm. exterior">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-secondary small mb-1">Núm. Interior</label>
+                                <input type="text" id="edit_noInt" class="form-control" placeholder="Núm. interior (opcional)">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">Municipio</label>
+                                <input type="text" id="edit_municipio" class="form-control" placeholder="Municipio / Alcaldía">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small mb-1">Ciudad</label>
+                                <input type="text" id="edit_ciudad" class="form-control" placeholder="Ciudad">
+                            </div>
                         </div>
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" id="btnGuardar" class="btn btn-primary">Guardar cambios</button>
+
+            <div class="modal-footer bg-light border-top-0 px-4 py-3">
+                <button type="button" class="btn btn-outline-secondary px-4" id="btnCancel" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-secondary px-4" id="btnPrev" style="display: none;">
+                    <i class="bi bi-arrow-left me-1"></i> Anterior
+                </button>
+                <button type="button" class="btn btn-primary px-4" id="btnNext">
+                    Siguiente <i class="bi bi-arrow-right ms-1"></i>
+                </button>
+                <button type="button" class="btn btn-primary px-4" id="btnSubmit" style="display: none;">
+                    <i class="bi bi-save me-1"></i> Guardar Proveedor
+                </button>
             </div>
         </div>
     </div>
@@ -341,7 +458,10 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
     let dataTable;
+    let currentStep = 1;
+    const totalSteps = 3;
 
+    // ======================== DATA TABLE ========================
     function cargarTabla() {
         $.ajax({
             url: "{% url 'proveedores_sin_cfdi_data' %}",
@@ -373,9 +493,8 @@
                     order: [[1, 'asc']],
                     columnDefs: [{ orderable: false, targets: 6 }],
                     dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
-                    searching: true   // Importante para que el search() funcione
+                    searching: true
                 });
-                // Conectar buscador personalizado
                 $('#searchInput').off('keyup').on('keyup', function() {
                     dataTable.search(this.value).draw();
                 });
@@ -384,6 +503,55 @@
         });
     }
 
+    // ======================== STEPPER UI ========================
+    function updateStepperUI() {
+        // 1. Mostrar contenido correcto
+        document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+        document.getElementById(`step-${currentStep}`).classList.add('active');
+
+        // 2. Actualizar indicadores
+        document.querySelectorAll('.step-item').forEach((el, idx) => {
+            const stepNum = idx + 1;
+            el.classList.remove('active', 'completed');
+            if (stepNum === currentStep) el.classList.add('active');
+            else if (stepNum < currentStep) el.classList.add('completed');
+        });
+
+        // 3. Barra de progreso
+        const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
+        document.getElementById('stepperProgress').style.width = `${progress}%`;
+
+        // 4. Botones
+        const btnPrev = document.getElementById('btnPrev');
+        const btnNext = document.getElementById('btnNext');
+        const btnSubmit = document.getElementById('btnSubmit');
+        const btnCancel = document.getElementById('btnCancel');
+
+        if (currentStep === 1) {
+            btnCancel.style.display = 'block';
+            btnPrev.style.display = 'none';
+        } else {
+            btnCancel.style.display = 'none';
+            btnPrev.style.display = 'block';
+        }
+
+        if (currentStep === totalSteps) {
+            btnNext.style.display = 'none';
+            btnSubmit.style.display = 'block';
+        } else {
+            btnNext.style.display = 'block';
+            btnSubmit.style.display = 'none';
+        }
+    }
+
+    function navigateStep(delta) {
+        const newStep = currentStep + delta;
+        if (newStep < 1 || newStep > totalSteps) return;
+        currentStep = newStep;
+        updateStepperUI();
+    }
+
+    // ======================== MODAL: LIMPIAR / CARGAR DATOS ========================
     function limpiarModal() {
         $('#edit_id').val('');
         $('#edit_RFC').val('').prop('readonly', false);
@@ -392,6 +560,11 @@
         $('#edit_tipoProveedor, #edit_nombre, #edit_apellidoPaterno, #edit_apellidoMaterno').val('');
         $('#edit_Nombrecomercial, #edit_tipoPersona, #edit_codigoPostal, #edit_calle').val('');
         $('#edit_noInt, #edit_noExt, #edit_colonia, #edit_estado, #edit_municipio, #edit_ciudad, #edit_telefono').val('');
+        // Resetear stepper
+        currentStep = 1;
+        updateStepperUI();
+        // Cambiar título del modal según modo
+        $('#modalLabel').text('Agregar Proveedor Prospecto');
     }
 
     function cargarDetalle(id) {
@@ -420,12 +593,17 @@
                 $('#edit_municipio').val(data.municipio);
                 $('#edit_ciudad').val(data.ciudad);
                 $('#edit_telefono').val(data.telefono);
+                // Resetear stepper y cambiar título
+                currentStep = 1;
+                updateStepperUI();
+                $('#modalLabel').text('Editar Proveedor Prospecto');
                 $('#modalEditar').modal('show');
             },
             error: function() { alert('Error al cargar datos'); }
         });
     }
 
+    // ======================== GUARDAR (AJAX) ========================
     function guardarProveedor() {
         const id = $('#edit_id').val();
         const data = {
@@ -451,6 +629,10 @@
             telefono: $('#edit_telefono').val()
         };
         const url = id ? "{% url 'proveedor_sin_cfdi_actualizar' 0 %}".replace('0', id) : "{% url 'proveedor_sin_cfdi_crear' %}";
+        const btn = $('#btnSubmit');
+        const originalText = btn.html();
+        btn.html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Guardando...').prop('disabled', true);
+
         $.ajax({
             url: url,
             method: "POST",
@@ -461,38 +643,59 @@
                 if (resp.success) {
                     $('#modalEditar').modal('hide');
                     cargarTabla();
-                } else alert('Error: ' + (resp.error || 'Desconocido'));
+                } else {
+                    alert('Error: ' + (resp.error || 'Desconocido'));
+                }
+                btn.html(originalText).prop('disabled', false);
             },
-            error: function(xhr) { alert('Error al guardar: ' + xhr.responseText); }
+            error: function(xhr) {
+                alert('Error al guardar: ' + xhr.responseText);
+                btn.html(originalText).prop('disabled', false);
+            }
         });
     }
 
+    // ======================== EVENTOS ========================
     $(document).ready(function() {
         cargarTabla();
 
+        // Editar (pencil)
         $('#tablaProveedores').on('click', '.editar', function() {
             cargarDetalle($(this).data('id'));
         });
 
+        // Botón Nuevo
         $('#btnNuevo').click(function() {
             limpiarModal();
             $('#modalEditar').modal('show');
         });
 
-        $('#btnGuardar').click(guardarProveedor);
+        // Navegación del stepper
+        $('#btnNext').click(() => navigateStep(1));
+        $('#btnPrev').click(() => navigateStep(-1));
+        $('#btnSubmit').click(guardarProveedor);
 
-        // Exportar plantilla CSV
-        $('#btnExportarPlantilla').click(function() {
-            window.location.href = "{% url 'proveedores_sin_cfdi_exportar' %}";
+        // Importación/exportación
+        $('#btnExportarPlantilla').click(() => window.location.href = "{% url 'proveedores_sin_cfdi_exportar' %}");
+        $('#btnImportar').click(() => $('#fileImport').click());
+        $('#btnExportarExcel').click(() => {
+            const data = dataTable.rows({ search: 'applied' }).data().toArray();
+            const wsData = data.map(row => ({
+                'RFC': row.RFC,
+                'Razón Social': row.RazonSocial,
+                'Correo': row.Correo,
+                'Correo2': row.Correo2,
+                'Correo3': row.Correo3,
+                'Tipo Proveedor': row.tipoProveedor
+            }));
+            const ws = XLSX.utils.json_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Proveedores_Prospectos');
+            XLSX.writeFile(wb, `proveedores_prospectos_${new Date().toISOString().slice(0,19)}.xlsx`);
         });
 
-        // Importar CSV
-        $('#btnImportar').click(function() {
-            $('#fileImport').click();
-        });
-
-        $('#fileImport').change(function() {
-            const file = this.files[0];
+        $('#fileImport').change(function(e) {
+            const file = e.target.files[0];
             if (!file) return;
             const formData = new FormData();
             formData.append('file', file);
@@ -509,32 +712,12 @@
                         cargarTabla();
                     } else alert('Error: ' + resp.error);
                 },
-                error: function() { alert('Error en la importación'); }
+                error: () => alert('Error en la importación')
             });
         });
 
-        // Exportar a Excel (datos visibles actualmente)
-        $('#btnExportarExcel').click(function() {
-            const data = dataTable.rows({ search: 'applied' }).data().toArray();
-            const wsData = data.map(row => ({
-                'RFC': row.RFC,
-                'Razón Social': row.RazonSocial,
-                'Correo': row.Correo,
-                'Correo2': row.Correo2,
-                'Correo3': row.Correo3,
-                'Tipo Proveedor': row.tipoProveedor
-            }));
-            const ws = XLSX.utils.json_to_sheet(wsData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Proveedores_Prospectos');
-            XLSX.writeFile(wb, `proveedores_prospectos_${new Date().toISOString().slice(0,19)}.xlsx`);
-        });
-
         // Tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.forEach(function(el) {
-            new bootstrap.Tooltip(el);
-        });
+        $('[data-bs-toggle="tooltip"]').tooltip();
     });
 </script>
 {% endblock %}

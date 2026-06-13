@@ -2,7 +2,8 @@
 {% load static %}
 
 {% block title %}Clientes prospectos{% endblock %}
-{% block content_title %}Catálogo de Clientes prospectos{% endblock %}
+{% block content_title %}<span style="color: #005EC4;">Catálogo de Clientes prospectos</span>{% endblock %}
+
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -127,7 +128,7 @@
 {% block breadcrumb %}
 <li class="breadcrumb-item active">
     <button id="btnNuevo" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" title="Nuevo cliente">
-                <i class="bi bi-plus-lg me-1"></i> Nuevo Cliente Prospectos
+                <i class="bi bi-plus-lg me-1"></i> Agregar Nuevo
     </button>
 </li>
 {% endblock %}
@@ -146,14 +147,14 @@
                 <i class="bi bi-plus-lg"></i>
             </button>
             -->
-            <button class="btn-header-tertiary" id="btnExportarPlantilla" data-bs-toggle="tooltip" title="Exportar plantilla CSV">
-                <i class="bi bi-download"></i>
+            <button class="btn-header-primary" id="btnExportarPlantilla" data-bs-toggle="tooltip" title="Exportar plantilla CSV">
+                <i class="bi bi-download"></i>Plantilla
             </button>
-            <button class="btn-header-tertiary" id="btnImportar" data-bs-toggle="tooltip" title="Importar CSV">
-                <i class="bi bi-upload"></i>
+            <button class="btn-header-primary" id="btnImportar" data-bs-toggle="tooltip" title="Importar CSV">
+                <i class="bi bi-upload"></i>Importar
             </button>
-            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
-                <i class="bi bi-file-earmark-excel"></i>
+            <button class="btn-header-primary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
+                <i class="bi bi-file-earmark-excel"></i>Excel
             </button>
             <input type="file" id="fileImport" style="display: none;" accept=".csv">
         </div>
@@ -284,7 +285,7 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" id="btnGuardar" class="btn btn-primary">Guardar cambios</button>
             </div>
         </div>

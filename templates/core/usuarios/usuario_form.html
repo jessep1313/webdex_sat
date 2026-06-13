@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}{% if usuario %}Editar{% else %}Nuevo{% endif %} Usuario{% endblock %}
-{% block content_title %}{% if usuario %}Editar{% else %}Nuevo{% endif %} Usuario{% endblock %}
+{% block content_title %}<span style="color: #005EC4;">{% if admin %}Editar{% else %}Nuevo{% endif %} Administrador</span>{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -96,7 +96,7 @@
 
             <div class="d-flex justify-content-between">
                 <button type="submit" class="btn btn-primary">Guardar</button>
-                <a href="{% url 'usuarios_lista' %}" class="btn btn-secondary">Cancelar</a>
+                <a href="{% url 'usuarios_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
             </div>
         </form>
     </div>

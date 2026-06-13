@@ -2,7 +2,8 @@
 {% load static %}
 
 {% block title %}Opiniones de Cumplimiento{% endblock %}
-{% block content_title %}Opiniones de Cumplimiento{% endblock %}
+{% block content_title %}<span style="color: #005EC4;">Opiniones de Cumplimiento</span>{% endblock %}
+
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -141,6 +142,37 @@
         gap: 5px;
         justify-content: end;
     }
+
+    /* Botones de acción con estilo outlined (primario) */
+.btn-action-primary-outlined {
+    background-color: transparent !important;
+    border: 1px solid #005EC4 !important;
+    color: #005EC4 !important;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-action-primary-outlined:hover {
+    background-color: rgba(0, 94, 196, 0.08) !important;
+    color: #004a99 !important;
+    border-color: #004a99 !important;
+}
+
+.btn-action-primary-outlined:focus {
+    box-shadow: 0 0 0 0.2rem rgba(0, 94, 196, 0.25);
+    outline: none;
+}
+
+/* Si solo quieres iconos pequeños sin texto, ajusta el padding */
+.btn-action-primary-outlined.btn-icon {
+    padding: 6px 8px;
+}
 </style>
 {% endblock %}
 
@@ -153,8 +185,8 @@
                 <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar por RFC o razón social...">
             </div>
-            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
-                <i class="bi bi-file-earmark-excel"></i>
+            <button class="btn-header-primary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
+                <i class="bi bi-file-earmark-excel"></i>Excel
             </button>
         </div>
     </div>
@@ -280,13 +312,13 @@
                             render: function(row) {
                                 return `
                                     <div class="table-actions">
-                                        <button class="btn-action-primary btn-upload" data-rfc="${row.rfc}" data-tipo="${row.tipo}" title="Subir opinión">
+                                        <button class="btn-action-primary-outlined btn-upload" data-rfc="${row.rfc}" data-tipo="${row.tipo}" title="Subir opinión">
                                             <i class="bi bi-upload"></i>
                                         </button>
-                                        <button class="btn-action-primary btn-historial" data-rfc="${row.rfc}" title="Ver historial">
+                                        <button class="btn-action-primary-outlined btn-historial" data-rfc="${row.rfc}" title="Ver historial">
                                             <i class="bi bi-clock-history"></i>
                                         </button>
-                                        <button class="btn-action-primary btn-sat" data-rfc="${row.rfc}" data-tipo="${row.tipo}" title="Obtener del SAT">
+                                        <button class="btn-action-primary-outlined btn-sat" data-rfc="${row.rfc}" data-tipo="${row.tipo}" title="Obtener del SAT">
                                             <i class="bi bi-cloud-download"></i>
                                         </button>
                                     </div>

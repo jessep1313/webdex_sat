@@ -2,7 +2,8 @@
 {% load static %}
 
 {% block title %}Grupos{% endblock %}
-{% block content_title %}Listado de Grupos{% endblock %}
+{% block content_title %}<span style="color: #005EC4;">Listado de Grupos</span>{% endblock %}
+
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -169,8 +170,8 @@
                 <i class="bi bi-plus-lg"></i> Nuevo
             </a>
             -->
-            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel">
-                <i class="bi bi-file-earmark-excel"></i>
+            <button class="btn-header-primary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel">
+                <i class="bi bi-file-earmark-excel"></i>Excel
             </button>
         </div>
     </div>

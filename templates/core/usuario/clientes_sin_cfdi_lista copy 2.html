@@ -1,9 +1,8 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Clientes{% endblock %}
-{% block content_title %}<span style="color: #005EC4;">Catálogo de Clientes</span>{% endblock %}
-
+{% block title %}Clientes prospectos{% endblock %}
+{% block content_title %}Catálogo de Clientes prospectos{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -72,24 +71,6 @@
         transform: translateY(-1px);
     }
 
-    .btn-action-tertiary {
-        background-color: transparent;
-        color: #8D8D8D;
-        border: none;
-        width: 32px;
-        height: 32px;
-        border-radius: 6px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s ease;
-    }
-
-    .btn-action-tertiary:hover {
-        color: #005EC4;
-        background-color: rgba(0, 94, 196, 0.08);
-    }
-
     /* DataTables sobreescritura */
     .dataTables_wrapper .dataTables_filter {
         display: none;  /* Ocultamos el buscador nativo */
@@ -142,10 +123,19 @@
 </style>
 {% endblock %}
 
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">
+    <button id="btnNuevo" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" title="Nuevo cliente">
+                <i class="bi bi-plus-lg me-1"></i> Agregar Nuevo
+    </button>
+</li>
+{% endblock %}
+
 {% block content %}
 <div class="custom-table-container">
     <div class="table-toolbar d-flex justify-content-between align-items-center">
-        <h6 class="mb-0 fw-medium text-muted">Clientes registrados</h6>
+        <h6 class="mb-0 fw-medium text-muted">Clientes prospectos</h6>
         <div class="d-flex gap-2 align-items-center">
             <div class="input-group" style="max-width: 300px;">
                 <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
@@ -178,7 +168,7 @@
                     <th>Correo2</th>
                     <th>Correo3</th>
                     <th>Tipo Cliente</th>
-                    <th class="text-end">Acciones</th>
+                    <th >Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -191,7 +181,7 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Editar Cliente</h5>
+                <h5 class="modal-title">Nuevo Cliente Prospecto</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -311,7 +301,7 @@
 
     function cargarTabla() {
         $.ajax({
-            url: "{% url 'clientes_data' %}",
+            url: "{% url 'clientes_sin_cfdi_data' %}",
             method: "GET",
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             success: function(data) {
@@ -363,7 +353,7 @@
 
     function cargarDetalle(id) {
         $.ajax({
-            url: "{% url 'cliente_detalle' 0 %}".replace('0', id),
+            url: "{% url 'cliente_sin_cfdi_detalle' 0 %}".replace('0', id),
             method: "GET",
             success: function(data) {
                 $('#edit_id').val(data.id);
@@ -417,7 +407,7 @@
             ciudad: $('#edit_ciudad').val(),
             telefono: $('#edit_telefono').val()
         };
-        const url = id ? "{% url 'cliente_actualizar' 0 %}".replace('0', id) : "{% url 'cliente_crear' %}";
+        const url = id ? "{% url 'cliente_sin_cfdi_actualizar' 0 %}".replace('0', id) : "{% url 'cliente_sin_cfdi_crear' %}";
         $.ajax({
             url: url,
             method: "POST",
@@ -450,7 +440,7 @@
 
         // Exportar plantilla CSV
         $('#btnExportarPlantilla').click(function() {
-            window.location.href = "{% url 'clientes_exportar' %}";
+            window.location.href = "{% url 'clientes_sin_cfdi_exportar' %}";
         });
 
         // Importar CSV
@@ -464,7 +454,7 @@
             const formData = new FormData();
             formData.append('file', file);
             $.ajax({
-                url: "{% url 'clientes_importar' %}",
+                url: "{% url 'clientes_sin_cfdi_importar' %}",
                 method: "POST",
                 headers: { 'X-CSRFToken': '{{ csrf_token }}' },
                 data: formData,
@@ -493,8 +483,8 @@
             }));
             const ws = XLSX.utils.json_to_sheet(wsData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
-            XLSX.writeFile(wb, `clientes_${new Date().toISOString().slice(0,19)}.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, 'Clientes_Sin_CFDI');
+            XLSX.writeFile(wb, `clientes_sin_cfdi_${new Date().toISOString().slice(0,19)}.xlsx`);
         });
 
         // Tooltips

@@ -2,7 +2,8 @@
 {% load static %}
 
 {% block title %}eFirmas de la Empresa{% endblock %}
-{% block content_title %}eFirmas (FIEL) de {{ request.session.empresa_nombre }}{% endblock %}
+{% block content_title %}<span style="color: #005EC4;">eFirmas (FIEL) de {{ request.session.empresa_nombre }}</span>{% endblock %}
+
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -216,8 +217,8 @@
             </a>
             -->
 
-            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel">
-                <i class="bi bi-file-earmark-excel"></i>
+            <button class="btn-header-primary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel">
+                <i class="bi bi-file-earmark-excel"></i>Excel
             </button>
         </div>
     </div>

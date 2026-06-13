@@ -1,9 +1,8 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Clientes{% endblock %}
-{% block content_title %}<span style="color: #005EC4;">Catálogo de Clientes</span>{% endblock %}
-
+{% block title %}Proveedores prospectos{% endblock %}
+{% block content_title %}Catálogo de Proveedores Prospectos{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -90,6 +89,30 @@
         background-color: rgba(0, 94, 196, 0.08);
     }
 
+    .status-pill {
+        padding: 4px 12px;
+        border-radius: 50rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .pill-green {
+        background-color: #e6f4ea;
+        color: #1e8e3e;
+    }
+
+    .pill-red {
+        background-color: #fce8e6;
+        color: #d93025;
+    }
+
+    .pill-yellow {
+        background-color: #fef7e0;
+        color: #b08a00;
+    }
+
     /* DataTables sobreescritura */
     .dataTables_wrapper .dataTables_filter {
         display: none;  /* Ocultamos el buscador nativo */
@@ -139,37 +162,58 @@
     .modal-xl {
         max-width: 90%;
     }
+
+
 </style>
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">
+    <button id="btnNuevo" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" title="Nuevo prospectos">
+                <i class="bi bi-plus-lg me-1"></i> Agregar Nuevo 
+    </button>
+</li>
 {% endblock %}
 
 {% block content %}
 <div class="custom-table-container">
     <div class="table-toolbar d-flex justify-content-between align-items-center">
-        <h6 class="mb-0 fw-medium text-muted">Clientes registrados</h6>
+        <h6 class="mb-0 fw-medium text-muted">Proveedores prospectos (sin CFDI)</h6>
         <div class="d-flex gap-2 align-items-center">
             <div class="input-group" style="max-width: 300px;">
                 <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" id="searchInput" class="form-control border-start-0 ps-0 shadow-none fw-normal" placeholder="Buscar...">
             </div>
-            <!-------
-            <button class="btn-header-tertiary" id="btnNuevo" data-bs-toggle="tooltip" title="Nuevo cliente">
+            <!---
+            <button class="btn-header-tertiary" id="btnNuevo" data-bs-toggle="tooltip" title="Nuevo proveedor">
                 <i class="bi bi-plus-lg"></i>
             </button>
             -->
+            <!--
+            <button class="btn-header-tertiary" id="btnExportarPlantilla" data-bs-toggle="tooltip" title="Exportar plantilla CSV">
+                <i class="bi bi-download"></i>
+            </button>
+            <button class="btn-header-tertiary" id="btnImportar" data-bs-toggle="tooltip" title="Importar CSV">
+                <i class="bi bi-upload"></i>
+            </button>
+            <button class="btn-header-tertiary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
+                <i class="bi bi-file-earmark-excel"></i>
+            </button>
+            -->
             <button class="btn-header-primary" id="btnExportarPlantilla" data-bs-toggle="tooltip" title="Exportar plantilla CSV">
-                <i class="bi bi-download"></i>Plantilla
+                <i class="bi bi-download"></i> Plantilla
             </button>
             <button class="btn-header-primary" id="btnImportar" data-bs-toggle="tooltip" title="Importar CSV">
-                <i class="bi bi-upload"></i>Importar
+                <i class="bi bi-upload"></i> Importar
             </button>
             <button class="btn-header-primary" id="btnExportarExcel" data-bs-toggle="tooltip" title="Exportar a Excel (datos actuales)">
-                <i class="bi bi-file-earmark-excel"></i>Excel
+                <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
             <input type="file" id="fileImport" style="display: none;" accept=".csv">
         </div>
     </div>
     <div class="table-responsive">
-        <table id="tablaClientes" class="table mb-0">
+        <table id="tablaProveedores" class="table mb-0">
             <thead>
                 <tr>
                     <th>RFC</th>
@@ -177,8 +221,8 @@
                     <th>Correo</th>
                     <th>Correo2</th>
                     <th>Correo3</th>
-                    <th>Tipo Cliente</th>
-                    <th class="text-end">Acciones</th>
+                    <th>Tipo Proveedor</th>
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -186,12 +230,12 @@
     </div>
 </div>
 
-<!-- Modal para editar/crear cliente (sin cambios funcionales) -->
+<!-- Modal para editar/crear proveedor (sin cambio funcional) -->
 <div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Editar Cliente</h5>
+                <h5 class="modal-title">Nuevo Proveedor Prospecto</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -223,7 +267,7 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Tipo Cliente</label>
+                            <label class="form-label">Tipo Proveedor</label>
                             <input type="text" id="edit_tipoProveedor" class="form-control">
                         </div>
                         <div class="col-md-6 mb-3">
@@ -311,12 +355,12 @@
 
     function cargarTabla() {
         $.ajax({
-            url: "{% url 'clientes_data' %}",
+            url: "{% url 'proveedores_sin_cfdi_data' %}",
             method: "GET",
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             success: function(data) {
                 if (dataTable) dataTable.clear().destroy();
-                dataTable = $('#tablaClientes').DataTable({
+                dataTable = $('#tablaProveedores').DataTable({
                     data: data,
                     columns: [
                         { data: 'RFC' },
@@ -329,7 +373,7 @@
                             data: null,
                             render: function(row) {
                                 return '<div class="d-flex justify-content-end gap-1">' +
-                                       '<button class="btn-action-primary editar" data-id="' + row.id + '" data-bs-toggle="tooltip" title="Editar cliente">' +
+                                       '<button class="btn-action-primary editar" data-id="' + row.id + '" data-bs-toggle="tooltip" title="Editar proveedor">' +
                                        '<i class="bi bi-pencil"></i></button>' +
                                        '</div>';
                             }
@@ -340,14 +384,14 @@
                     order: [[1, 'asc']],
                     columnDefs: [{ orderable: false, targets: 6 }],
                     dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
-                    searching: true   // Habilitamos búsqueda
+                    searching: true   // Importante para que el search() funcione
                 });
                 // Conectar buscador personalizado
                 $('#searchInput').off('keyup').on('keyup', function() {
                     dataTable.search(this.value).draw();
                 });
             },
-            error: function() { alert('Error al cargar clientes'); }
+            error: function() { alert('Error al cargar proveedores'); }
         });
     }
 
@@ -363,7 +407,7 @@
 
     function cargarDetalle(id) {
         $.ajax({
-            url: "{% url 'cliente_detalle' 0 %}".replace('0', id),
+            url: "{% url 'proveedor_sin_cfdi_detalle' 0 %}".replace('0', id),
             method: "GET",
             success: function(data) {
                 $('#edit_id').val(data.id);
@@ -393,7 +437,7 @@
         });
     }
 
-    function guardarCliente() {
+    function guardarProveedor() {
         const id = $('#edit_id').val();
         const data = {
             RFC: $('#edit_RFC').val(),
@@ -417,7 +461,7 @@
             ciudad: $('#edit_ciudad').val(),
             telefono: $('#edit_telefono').val()
         };
-        const url = id ? "{% url 'cliente_actualizar' 0 %}".replace('0', id) : "{% url 'cliente_crear' %}";
+        const url = id ? "{% url 'proveedor_sin_cfdi_actualizar' 0 %}".replace('0', id) : "{% url 'proveedor_sin_cfdi_crear' %}";
         $.ajax({
             url: url,
             method: "POST",
@@ -437,7 +481,7 @@
     $(document).ready(function() {
         cargarTabla();
 
-        $('#tablaClientes').on('click', '.editar', function() {
+        $('#tablaProveedores').on('click', '.editar', function() {
             cargarDetalle($(this).data('id'));
         });
 
@@ -446,11 +490,11 @@
             $('#modalEditar').modal('show');
         });
 
-        $('#btnGuardar').click(guardarCliente);
+        $('#btnGuardar').click(guardarProveedor);
 
         // Exportar plantilla CSV
         $('#btnExportarPlantilla').click(function() {
-            window.location.href = "{% url 'clientes_exportar' %}";
+            window.location.href = "{% url 'proveedores_sin_cfdi_exportar' %}";
         });
 
         // Importar CSV
@@ -464,7 +508,7 @@
             const formData = new FormData();
             formData.append('file', file);
             $.ajax({
-                url: "{% url 'clientes_importar' %}",
+                url: "{% url 'proveedores_sin_cfdi_importar' %}",
                 method: "POST",
                 headers: { 'X-CSRFToken': '{{ csrf_token }}' },
                 data: formData,
@@ -489,12 +533,12 @@
                 'Correo': row.Correo,
                 'Correo2': row.Correo2,
                 'Correo3': row.Correo3,
-                'Tipo Cliente': row.tipoProveedor
+                'Tipo Proveedor': row.tipoProveedor
             }));
             const ws = XLSX.utils.json_to_sheet(wsData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
-            XLSX.writeFile(wb, `clientes_${new Date().toISOString().slice(0,19)}.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, 'Proveedores_Prospectos');
+            XLSX.writeFile(wb, `proveedores_prospectos_${new Date().toISOString().slice(0,19)}.xlsx`);
         });
 
         // Tooltips

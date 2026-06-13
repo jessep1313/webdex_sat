@@ -2,7 +2,8 @@
 {% load static %}
 
 {% block title %}CFDI Recibidas{% endblock %}
-{% block content_title %}Facturas Recibidas - {{ request.session.empresa_nombre }}{% endblock %}
+{% block content_title %}<span style="color: #005EC4;">Facturas Recibidas - {{ request.session.empresa_nombre }}</span>{% endblock %}
+
 
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -83,7 +84,7 @@
         float: right;
         text-align: right;
         margin-bottom: 0;
-        display: none; /* Ocultamos el input predeterminado de DataTables porque usamos el nuestro */
+        display: none;
     }
 
     .dataTables_wrapper .dataTables_length,
@@ -132,13 +133,52 @@
         border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     }
+
+    /* === ECUALIZACIÓN DE COLORES PRIMARIOS EN LA TABLA === */
+    .table tbody tr:hover {
+        background-color: rgba(0, 94, 196, 0.04) !important;
+        transition: background-color 0.2s ease;
+    }
+
+    .custom-table-container .table td,
+    .custom-table-container .table th {
+        border-color: rgba(0, 94, 196, 0.1);
+    }
+
+    .page-link:not(.active) {
+        color: #005EC4;
+        background-color: transparent;
+    }
+    .page-link:not(.active):hover {
+        color: #004a99;
+        background-color: rgba(0, 94, 196, 0.08);
+    }
+
+    #searchInput:focus {
+        border-color: #005EC4 !important;
+        box-shadow: 0 0 0 0.2rem rgba(0, 94, 196, 0.25);
+    }
+
+    .btn-header-tertiary {
+        color: #005EC4;
+    }
+    .btn-header-tertiary:hover {
+        background-color: rgba(0, 94, 196, 0.1);
+        color: #004a99;
+    }
+
+    .page-link:focus {
+        box-shadow: 0 0 0 0.2rem rgba(0, 94, 196, 0.25);
+    }
+
+    
 </style>
 {% endblock %}
 
 {% block content %}
 <!-- Filtro de fechas (sin cambios) -->
-<div class="card card-primary card-outline">
-    <div class="card-header">
+<div class="card card-primary">
+    <div class="card-header card-primary">
         <h3 class="card-title">Filtro de fechas</h3>
     </div>
     <div class="card-body">
@@ -162,7 +202,7 @@
 <!-- Resumen y acciones (sin cambios) -->
 <div class="row">
     <div class="col-md-6">
-        <div class="card card-info">
+        <div class="card card-primary">
             <div class="card-header">
                 <h3 class="card-title">Resumen</h3>
             </div>
@@ -173,7 +213,7 @@
         </div>
     </div>
     <div class="col-md-6">
-        <div class="card card-warning">
+        <div class="card card-primary">
             <div class="card-header">
                 <h3 class="card-title">Acciones</h3>
             </div>
@@ -188,8 +228,8 @@
 <!-- Gráficos (sin cambios) -->
 <div class="row">
     <div class="col-md-12">
-        <div class="card card-success">
-            <div class="card-header">
+        <div class="card card-primary">
+            <div class="card-header ">
                 <h3 class="card-title">Gráficos</h3>
             </div>
             <div class="card-body">
