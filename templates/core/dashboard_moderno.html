@@ -275,6 +275,7 @@
 
     // ======================== MÉTRICAS Y GRÁFICO PRINCIPAL ========================
     async function loadMetrics(view) {
+       
         try {
             const response = await fetch(`${METRICS_URL}?view=${view}`, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }

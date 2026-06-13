@@ -425,6 +425,8 @@ def dashboard(request):
         rfc_empresa = request.session.get('empresa_rfc')
         empresa_nombre = request.session.get('empresa_nombre')
 
+
+
         # Datos básicos que se pasan a la plantilla (el resto se cargará vía AJAX)
         context = {
             'user_type': user_type,
@@ -433,7 +435,7 @@ def dashboard(request):
         }
         return render(request, 'core/dashboard_moderno.html', context)
 
-@usuario_required
+
 def usuario_metrics_data(request):
     """
     Endpoint que devuelve métricas para el dashboard moderno.
@@ -446,6 +448,9 @@ def usuario_metrics_data(request):
     rfc_empresa = request.session.get('empresa_rfc')
     view = request.GET.get('view', 'general')
     print(f"View: {view}")
+    print(f"RFC: {rfc_empresa}")
+    print(f"DB Name: {db_name}")
+    print(f"HOLAAAAAAAA")
 
     if not db_name or not rfc_empresa:
         return JsonResponse({'error': 'No se ha identificado la empresa'}, status=400)
