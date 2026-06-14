@@ -4812,10 +4812,6 @@ def usuario_opiniones_data(request):
 
 
 
-
-
-
-
 def extraer_datos_pdf(pdf_file):
     """Extrae fecha y resultado del PDF de opinión."""
     try:
