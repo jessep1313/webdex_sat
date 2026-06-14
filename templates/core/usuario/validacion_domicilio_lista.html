@@ -123,6 +123,37 @@
         gap: 5px;
         justify-content: end;
     }
+
+        /* Botones de acción con estilo outlined (primario) */
+        .btn-action-primary-outlined {
+            background-color: transparent !important;
+            border: 1px solid #005EC4 !important;
+            color: #005EC4 !important;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-action-primary-outlined:hover {
+            background-color: rgba(0, 94, 196, 0.08) !important;
+            color: #004a99 !important;
+            border-color: #004a99 !important;
+        }
+
+        .btn-action-primary-outlined:focus {
+            box-shadow: 0 0 0 0.2rem rgba(0, 94, 196, 0.25);
+            outline: none;
+        }
+
+        /* Si solo quieres iconos pequeños sin texto, ajusta el padding */
+        .btn-action-primary-outlined.btn-icon {
+            padding: 6px 8px;
+        }
 </style>
 {% endblock %}
 
@@ -218,7 +249,7 @@
                             render: function(row) {
                                 return `
                                     <div class="table-actions">
-                                        <button class="btn-action-primary btn-validar" data-rfc="${row.rfc}" title="Validar domicilio">
+                                        <button class="btn-action-primary-outlined btn-validar" data-rfc="${row.rfc}" title="Validar domicilio">
                                             <i class="bi bi-check-circle"></i>
                                         </button>
                                     </div>

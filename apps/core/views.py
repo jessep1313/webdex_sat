@@ -6864,7 +6864,7 @@ def usuario_validacion_domicilio_data(request):
         for row in cursor.fetchall():
             item = dict(zip(columns, row))
             item['rfc'] = item.pop('RFC')  # Renombra la clave 'RFC' a 'rfc' si es necesario
-
+            item['razon_social'] = item.pop('RazonSocial')
             item['tipo_nombre'] = tipo_nombres.get(item['tipo_interno'], item['tipo_interno'])
             data.append(item)
 
@@ -6881,7 +6881,7 @@ def usuario_validacion_domicilio_data(request):
         for row in cursor.fetchall():
             item = dict(zip(columns, row))
             item['rfc'] = item.pop('RFC')  # Renombra la clave 'RFC' a 'rfc' si es necesario
-
+            item['razon_social'] = item.pop('RazonSocial')
             item['tipo_nombre'] = tipo_nombres.get(item['tipo_interno'], item['tipo_interno'])
             data.append(item)
 
@@ -6898,7 +6898,7 @@ def usuario_validacion_domicilio_data(request):
         for row in cursor.fetchall():
             item = dict(zip(columns, row))
             item['rfc'] = item.pop('RFC')  # Renombra la clave 'RFC' a 'rfc' si es necesario
-
+            item['razon_social'] = item.pop('RazonSocial')
             item['tipo_nombre'] = tipo_nombres.get(item['tipo_interno'], item['tipo_interno'])
             data.append(item)
 
@@ -6915,7 +6915,7 @@ def usuario_validacion_domicilio_data(request):
         for row in cursor.fetchall():
             item = dict(zip(columns, row))
             item['rfc'] = item.pop('RFC')  # Renombra la clave 'RFC' a 'rfc' si es necesario
-
+            item['razon_social'] = item.pop('RazonSocial')
             item['tipo_nombre'] = tipo_nombres.get(item['tipo_interno'], item['tipo_interno'])
             data.append(item)
 
