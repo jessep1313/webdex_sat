@@ -5905,7 +5905,7 @@ def obtener_opinion_sat(rfc, download_dir, logs, update_callback=None):
     
     try:
         # Descargar/actualizar ChromeDriver automáticamente
-        service = Service(ChromeDriverManager().install())
+        #service = Service(ChromeDriverManager().install())
         #driver = webdriver.Chrome(service=service, options=options)
         driver = webdriver.Chrome(options=options)
 

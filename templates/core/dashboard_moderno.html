@@ -454,7 +454,7 @@
                 </div>
                 <div class="sub-card">
                     <span class="sub-card-label text-dark fw-bold">Sin Ningún Documento</span>
-                    <span class="sub-card-value">${data.pendData[2]}</span>
+                <span class="sub-card-value">${Math.max(0, data.pendData?.[2] ?? 0)}</span>
                 </div>
             `;
         } else if (highlight === 'listas') {
@@ -469,7 +469,7 @@
                 </div>
                 <div class="sub-card border-danger bg-danger-subtle bg-opacity-10">
                     <span class="sub-card-label text-danger fw-bold">Art. 69-Bis</span>
-                    <span class="sub-card-value text-danger">${data.listData[2]}</span>
+                <span class="sub-card-value text-danger">${Math.max(0, data.listData?.[2] ?? 0)}</span>
                 </div>
             `;
         } else {
@@ -485,11 +485,11 @@
                     </div>
                     <div class="sub-card">
                         <span class="sub-card-label text-dark fw-bold">Total Clientes</span>
-                        <span class="sub-card-value text-primary">${data.outerData[0]}</span>
+                    <span class="sub-card-value text-primary">${Math.max(0, data.outerData?.[0] ?? 0)}</span>
                     </div>
                     <div class="sub-card">
                         <span class="sub-card-label text-dark fw-bold">Total Proveedores</span>
-                        <span class="sub-card-value text-primary">${data.outerData[1]}</span>
+                    <span class="sub-card-value text-primary">${Math.max(0, data.outerData?.[1] ?? 0)}</span>
                     </div>
                 `;
             } else {
@@ -504,7 +504,7 @@
                     </div>
                     <div class="sub-card">
                         <span class="sub-card-label text-dark fw-bold">Total Regulares/Sanos</span>
-                        <span class="sub-card-value text-success">${data.sanos}</span>
+                    <span class="sub-card-value text-success">${Math.max(0, data.sanos ?? 0)}</span>
                     </div>
                 `;
             }
