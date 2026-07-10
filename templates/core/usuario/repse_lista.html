@@ -90,6 +90,7 @@
         font-size: 0.8rem;
         letter-spacing: 0.5px;
         border-bottom: none;
+        text-align: center;
     }
 
     table.dataTable tbody td {
@@ -97,52 +98,89 @@
         border-bottom: 1px solid #f0f0f0;
         font-size: 0.9rem;
         vertical-align: middle;
+        text-align: center;
     }
 
-    /* Estilos específicos para los badges y botones (compatibles con nuevo diseño) */
-    .badge-success {
-        background-color: #28a745 !important;
-        color: white;
-        padding: 5px 8px;
+    /* Estilos para los indicadores de estado */
+    .doc-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    .doc-status .status-icon {
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
-        font-size: 12px;
-        display: inline-block;
-        width: 24px;
-        text-align: center;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        border: 2px solid transparent;
+        transition: all 0.2s;
         cursor: pointer;
+        background-color: transparent;
+        text-decoration: none;
     }
-    .badge-danger {
-        background-color: #dc3545 !important;
+    .doc-status .status-icon.status-ok {
+        color: #28a745;
+        border-color: #28a745;
+        background-color: rgba(40, 167, 69, 0.1);
+    }
+    .doc-status .status-icon.status-ok:hover {
+        background-color: #28a745;
         color: white;
-        padding: 5px 8px;
+    }
+    .doc-status .status-icon.status-missing {
+        color: #dc3545;
+        border-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.1);
+        cursor: default;
+    }
+    .doc-status .btn-history {
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
-        font-size: 12px;
-        display: inline-block;
-        width: 28px;
-        text-align: center;
-    }
-    .btn-history {
-        margin-left: 4px;
+        border: 1px solid #ced4da;
         background-color: transparent;
-        border: none;
-        color: #8D8D8D;
+        color: #6c757d;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         transition: all 0.2s;
     }
-    .btn-history:hover {
+    .doc-status .btn-history:hover {
+        border-color: #005EC4;
         color: #005EC4;
         background-color: rgba(0, 94, 196, 0.08);
-        border-radius: 6px;
     }
-    .upload-btn {
-        background-color: transparent;
+
+    /* Botón subir en la columna acciones */
+    .btn-upload-doc {
+        background-color: #005EC4;
+        color: white;
         border: none;
-        color: #005EC4;
-        transition: all 0.2s;
-        padding: 5px 12px;
+        padding: 6px 14px;
         border-radius: 6px;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
     }
-    .upload-btn:hover {
-        background-color: rgba(0, 94, 196, 0.08);
+    .btn-upload-doc:hover {
+        background-color: #004ba1;
+        color: white;
+    }
+
+    /* Ajustes de alineación para columnas de documentos */
+    .doc-cell {
+        min-width: 90px;
+    }
+
+    /* Modal de ayuda */
+    .modal-body ul {
+        padding-left: 20px;
     }
 </style>
 {% endblock %}
@@ -170,14 +208,14 @@
                 <tr>
                     <th>RFC</th>
                     <th>Razón Social</th>
-                    <th class="text-center">A.R.</th>
-                    <th class="text-center">C.P.I.</th>
-                    <th class="text-center">C.L.</th>
-                    <th class="text-center">C.D.C.M.</th>
-                    <th class="text-center">C.D.C.B.</th>
-                    <th class="text-center">C.N.</th>
-                    <th class="text-center">D.P.S.</th>
-                    <th class="text-end">Acciones</th>
+                    <th class="text-center doc-cell">A.R.</th>
+                    <th class="text-center doc-cell">C.P.I.</th>
+                    <th class="text-center doc-cell">C.L.</th>
+                    <th class="text-center doc-cell">C.D.C.M.</th>
+                    <th class="text-center doc-cell">C.D.C.B.</th>
+                    <th class="text-center doc-cell">C.N.</th>
+                    <th class="text-center doc-cell">D.P.S.</th>
+                    <th class="text-center">Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -185,7 +223,7 @@
     </div>
 </div>
 
-<!-- Modal de ayuda (sin cambios) -->
+<!-- Modal de ayuda -->
 <div class="modal fade" id="modalAyuda" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -208,7 +246,7 @@
     </div>
 </div>
 
-<!-- Modal para subir ZIP (sin cambios funcionales) -->
+<!-- Modal para subir ZIP -->
 <div class="modal fade" id="modalSubirZIP" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -247,7 +285,7 @@
     </div>
 </div>
 
-<!-- Modal Historial (sin cambios funcionales) -->
+<!-- Modal Historial -->
 <div class="modal fade" id="modalHistorial" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -277,6 +315,31 @@
 <script>
     let dataTable;
 
+    // Función para generar el HTML del indicador de documento
+    function renderDocStatus(val, row, tipo) {
+        let statusHtml = '';
+        if (val == 1) {
+            statusHtml = `<span class="doc-status">
+                <a href="#" class="status-icon status-ok download-latest" data-rfc="${row.rfc}" data-tipo="${tipo}" title="Descargar último archivo">
+                    <i class="bi bi-check-lg"></i>
+                </a>
+                <button class="btn-history" data-rfc="${row.rfc}" data-tipo="${tipo}" title="Ver historial de cargas">
+                    <i class="bi bi-clock-history"></i>
+                </button>
+            </span>`;
+        } else {
+            statusHtml = `<span class="doc-status">
+                <span class="status-icon status-missing" title="Documento no cargado">
+                    <i class="bi bi-x-lg"></i>
+                </span>
+                <button class="btn-history" data-rfc="${row.rfc}" data-tipo="${tipo}" title="Ver historial de cargas">
+                    <i class="bi bi-clock-history"></i>
+                </button>
+            </span>`;
+        }
+        return statusHtml;
+    }
+
     function cargarTabla() {
         $.ajax({
             url: "{% url 'repse_data' %}",
@@ -292,95 +355,63 @@
                         {
                             data: 'AR',
                             render: function(val, type, row) {
-                                if (val == 1) {
-                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="AR" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="AR" title="Historial"><i class="bi bi-clock-history"></i></button>`;
-                                } else {
-                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
-                                }
+                                return renderDocStatus(val, row, 'AR');
                             }
                         },
                         {
                             data: 'CPI',
                             render: function(val, type, row) {
-                                if (val == 1) {
-                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CPI" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CPI" title="Historial"><i class="bi bi-clock-history"></i></button>`;
-                                } else {
-                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
-                                }
+                                return renderDocStatus(val, row, 'CPI');
                             }
                         },
                         {
                             data: 'CL',
                             render: function(val, type, row) {
-                                if (val == 1) {
-                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CL" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CL" title="Historial"><i class="bi bi-clock-history"></i></button>`;
-                                } else {
-                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
-                                }
+                                return renderDocStatus(val, row, 'CL');
                             }
                         },
                         {
                             data: 'CDCM',
                             render: function(val, type, row) {
-                                if (val == 1) {
-                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CDCM" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CDCM" title="Historial"><i class="bi bi-clock-history"></i></button>`;
-                                } else {
-                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
-                                }
+                                return renderDocStatus(val, row, 'CDCM');
                             }
                         },
                         {
                             data: 'CDCB',
                             render: function(val, type, row) {
-                                if (val == 1) {
-                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CDCB" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CDCB" title="Historial"><i class="bi bi-clock-history"></i></button>`;
-                                } else {
-                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
-                                }
+                                return renderDocStatus(val, row, 'CDCB');
                             }
                         },
                         {
                             data: 'CN',
                             render: function(val, type, row) {
-                                if (val == 1) {
-                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="CN" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="CN" title="Historial"><i class="bi bi-clock-history"></i></button>`;
-                                } else {
-                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
-                                }
+                                return renderDocStatus(val, row, 'CN');
                             }
                         },
                         {
                             data: 'DPS',
                             render: function(val, type, row) {
-                                if (val == 1) {
-                                    return `<span class="badge-success download-latest" data-rfc="${row.rfc}" data-tipo="DPS" style="cursor:pointer;"><i class="bi bi-check-lg"></i></span>
-                                            <button class="btn-action-primary ms-1" data-rfc="${row.rfc}" data-tipo="DPS" title="Historial"><i class="bi bi-clock-history"></i></button>`;
-                                } else {
-                                    return `<span class="badge-danger"><i class="bi bi-dash-lg"></i></span>`;
-                                }
+                                return renderDocStatus(val, row, 'DPS');
                             }
                         },
                         {
                             data: null,
                             render: function(row) {
-                                return `<div class="text-end">
-                                            <button class="upload-btn" data-rfc="${row.rfc}" title="Subir documento">
-                                                <i class="bi bi-upload"></i> Cargar
-                                            </button>
-                                        </div>`;
+                                return `<div class="text-center">
+                                    <button class="btn-upload-doc" data-rfc="${row.rfc}" title="Subir documento">
+                                        <i class="bi bi-upload"></i> Cargar
+                                    </button>
+                                </div>`;
                             }
                         }
                     ],
                     language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
                     pageLength: 20,
                     order: [[0, 'asc']],
-                    columnDefs: [{ orderable: false, targets: [2,3,4,5,6,7,8,9] }],
+                    columnDefs: [
+                        { orderable: false, targets: [2,3,4,5,6,7,8,9] },
+                        { className: 'text-center', targets: [2,3,4,5,6,7,8,9] }
+                    ],
                     dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
                     searching: true
                 });
@@ -474,7 +505,7 @@
         });
 
         // Subir ZIP
-        $('#tablaRepse').on('click', '.upload-btn', function() {
+        $('#tablaRepse').on('click', '.btn-upload-doc', function() {
             const rfc = $(this).data('rfc');
             $('#upload_rfc').val(rfc);
             $('#tipo_documento').val('');

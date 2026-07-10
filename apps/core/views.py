@@ -2891,8 +2891,8 @@ def registrar_proveedor(db_name, rfc_prov, nombre, rfc_cliente, logs):
             if cursor.fetchone()[0] > 0:
                 return
             cursor.execute("""
-                INSERT INTO proveedores (RFC, RazonSocial, Estatus, tipoProveedor, Correo, rfc_identy)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO proveedores (RFC, RazonSocial, Estatus, tipoProveedor, Correo, rfc_identy ,FechaAlta)
+                VALUES (%s, %s, %s, %s, %s, %s, CURDATE())
             """, [rfc_prov, nombre, 'SinRespuesta', 'Otro', 'generico@generico.com', rfc_cliente])
         logs.append(f"    Proveedor registrado: {rfc_prov} - {nombre}")
     except Exception as e:
@@ -3274,8 +3274,8 @@ def registrar_cliente(db_name, rfc_cliente, nombre, rfc_empresa, logs):
             if cursor.fetchone()[0] > 0:
                 return
             cursor.execute("""
-                INSERT INTO clientes (RFC, RazonSocial, Estatus, tipoProveedor, Correo, rfc_identy)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO clientes (RFC, RazonSocial, Estatus, tipoProveedor, Correo, rfc_identy,FechaAlta)
+                VALUES (%s, %s, %s, %s, %s, %s, CURDATE())
             """, [rfc_cliente, nombre, 'SinRespuesta', 'Otro', 'generico@generico.com', rfc_empresa])
         logs.append(f"    Cliente registrado: {rfc_cliente} - {nombre}")
     except Exception as e:
@@ -3614,13 +3614,28 @@ def proveedores_data(request):
 
     data = []
     for row in rows:
+        # Procesar Correo: si es el valor genérico, mostrar '-'
+        correo = row[3] or ''
+        if correo == 'generico@generico.com':
+            correo = '-'
+
+        correo1 = row[4] or ''
+        if correo1 == 'generico@generico.com':
+            correo1 = '-'
+
+        
+        correo2 = row[5] or ''
+        if correo2 == 'generico@generico.com':
+            correo2 = '-'
+
+
         data.append({
             'id': row[0],
             'RFC': row[1] or '',
             'RazonSocial': row[2] or '',
-            'Correo': row[3] or '',
-            'Correo2': row[4] or '',
-            'Correo3': row[5] or '',
+            'Correo': correo or '',
+            'Correo2': correo1 or '',
+            'Correo3': correo2 or '',
             'tipoProveedor': row[6] or '',
         })
     return JsonResponse(data, safe=False)
@@ -3983,8 +3998,8 @@ def proveedor_sin_cfdi_crear(request):
             (RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor,
              nombre, apellidoPaterno, apellidoMaterno, Nombrecomercial, tipoPersona,
              codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad, telefono,
-             rfc_identy)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             rfc_identy,FechaAlta)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURDATE())
         """
         valores = (
             rfc, razon_social,
@@ -4123,13 +4138,29 @@ def clientes_data(request):
 
     data = []
     for row in rows:
+        # Procesar Correo: si es el valor genérico, mostrar '-'
+        correo = row[3] or ''
+        if correo == 'generico@generico.com':
+            correo = '-'
+
+        correo1 = row[4] or ''
+        if correo1 == 'generico@generico.com':
+            correo1 = '-'
+
+        
+        correo2 = row[5] or ''
+        if correo2 == 'generico@generico.com':
+            correo2 = '-'
+
+
+
         data.append({
             'id': row[0],
             'RFC': row[1] or '',
             'RazonSocial': row[2] or '',
-            'Correo': row[3] or '',
-            'Correo2': row[4] or '',
-            'Correo3': row[5] or '',
+            'Correo': correo or '',
+            'Correo2': correo1 or '',
+            'Correo3': correo2 or '',
             'tipoProveedor': row[6] or '',
         })
     return JsonResponse(data, safe=False)
@@ -4538,8 +4569,8 @@ def cliente_sin_cfdi_crear(request):
             (RFC, RazonSocial, Correo, Correo2, Correo3, tipoProveedor,
              nombre, apellidoPaterno, apellidoMaterno, Nombrecomercial, tipoPersona,
              codigoPostal, calle, noInt, noExt, colonia, estado, municipio, ciudad, telefono,
-             rfc_identy)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             rfc_identy,FechaAlta)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURDATE())
         """
         valores = (
             rfc, razon_social,
@@ -4748,25 +4779,25 @@ def usuario_opiniones_data(request):
 
     with connections[db_name].cursor() as cursor:
         cursor.execute("""
-            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'proveedor' as tipo
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'proveedor' as tipo, FechaAlta
             FROM proveedores WHERE rfc_identy = %s
         """, [rfc_empresa])
         rows = list(cursor.fetchall())
 
         cursor.execute("""
-            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'proveedor_sin_cfdi' as tipo
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'proveedor_sin_cfdi' as tipo, FechaAlta
             FROM proveedores_sin_cfdi WHERE rfc_identy = %s
         """, [rfc_empresa])
         rows.extend(cursor.fetchall())
 
         cursor.execute("""
-            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'cliente' as tipo
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'cliente' as tipo, FechaAlta
             FROM clientes WHERE rfc_identy = %s
         """, [rfc_empresa])
         rows.extend(cursor.fetchall())
 
         cursor.execute("""
-            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'cliente_sin_cfdi' as tipo
+            SELECT RFC, RazonSocial, Estatus, fecha_opinion, opinion, 'cliente_sin_cfdi' as tipo, FechaAlta
             FROM clientes_sin_cfdi WHERE rfc_identy = %s
         """, [rfc_empresa])
         rows.extend(cursor.fetchall())
@@ -4779,6 +4810,7 @@ def usuario_opiniones_data(request):
         fecha_opinion = row[3]
         opinion = row[4] or 0
         tipo_interno = row[5]
+        FechaAlta = row[6]
 
         # Mapear estatus
         if estatus_raw == 'SinRespuesta':
@@ -4801,6 +4833,7 @@ def usuario_opiniones_data(request):
         data.append({
             'rfc': rfc,
             'razon_social': razon_social,
+            'FechaAlta': FechaAlta.strftime('%Y-%m-%d') if FechaAlta else '',
             'tipo_nombre': tipo_nombre,
             'estatus': estatus_display,
             'fecha_opinion': fecha_opinion.strftime('%Y-%m-%d') if fecha_opinion else '',

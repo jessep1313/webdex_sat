@@ -125,8 +125,8 @@
                     <th>Fecha inicio</th>
                     <th>Fecha final</th>
                     <th>Tipo</th>
+                    <th>Estatus</th>
                     <th>Código estatus SAT</th>
-                    <th>Mensaje</th>
                     <th>Fecha creación</th>
                 </tr>
             </thead>
@@ -143,8 +143,9 @@
                             <span class="status-pill pill-yellow">Emitidas</span>
                         {% endif %}
                     </td>
-                    <td>{{ p.CodEstatus|default:"-" }}</td>
                     <td>{{ p.Mensaje|truncatechars:50|default:"-" }}</td>
+                    <td>{{ p.CodEstatus|default:"-" }}</td>
+                    
                     <td>{{ p.created_at|date:"d/m/Y H:i" }}</td>
                 </tr>
                 {% empty %}

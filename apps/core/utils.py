@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS proveedores (
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
     Estatus VARCHAR(255) NULL,
-    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+    domicilio_validado varchar(20) DEFAULT 'Pendiente',
+    FechaAlta date DEFAULT NULL
 
 );
 
@@ -95,7 +96,8 @@ CREATE TABLE IF NOT EXISTS proveedores_historico (
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
     Estatus VARCHAR(255) NULL,
-    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+    domicilio_validado varchar(20) DEFAULT 'Pendiente',
+    FechaAlta date DEFAULT NULL
 
 
 );
@@ -131,7 +133,8 @@ CREATE TABLE IF NOT EXISTS proveedores_sin_cfdi (
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
     Estatus VARCHAR(255) NULL,
-    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+    domicilio_validado varchar(20) DEFAULT 'Pendiente',
+    FechaAlta date DEFAULT NULL
 
 );
 
@@ -167,7 +170,8 @@ CREATE TABLE IF NOT EXISTS clientes_sin_cfdi (
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
     Estatus VARCHAR(255) NULL,
-    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+    domicilio_validado varchar(20) DEFAULT 'Pendiente',
+    FechaAlta date DEFAULT NULL
 
 );
 
@@ -228,7 +232,8 @@ CREATE TABLE IF NOT EXISTS clientes (
     fecha_constancia DATE NULL,
     rfc_identy VARCHAR(255) NULL,
     Estatus VARCHAR(255) NULL,
-    domicilio_validado varchar(20) DEFAULT 'Pendiente'
+    domicilio_validado varchar(20) DEFAULT 'Pendiente',
+    FechaAlta date DEFAULT NULL
 
 );
 

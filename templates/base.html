@@ -612,7 +612,8 @@
 
             const rect = navItem.getBoundingClientRect();
             submenu.style.position = 'fixed';
-            submenu.style.top = `${rect.top + window.scrollY}px`;
+            //submenu.style.top = `${rect.top + window.scrollY}px`;
+            submenu.style.top = `${rect.top}px`;
             submenu.style.left = `${rect.right + 5}px`;
             submenu.style.display = 'block';
             currentFlyoutSubmenu = submenu;
