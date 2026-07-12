@@ -10,6 +10,12 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env.bool('DEBUG', default=True)
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 
+# Zona horaria por defecto para la aplicación
+TIME_ZONE = 'America/Mexico_City'
+
+# Si usas zonas horarias activas (recomendado)
+USE_TZ = True
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',

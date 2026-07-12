@@ -78,12 +78,14 @@
                         <div class="btn-group chart-type-selector w-100" role="group">
                             <input type="radio" class="btn-check" name="chartType" id="chartTable" autocomplete="off" checked>
                             <label class="btn btn-outline-primary" for="chartTable"><i class="bi bi-table me-2"></i>Tabla</label>
+                            <!-----
                             <input type="radio" class="btn-check" name="chartType" id="chartBar" autocomplete="off" disabled>
                             <label class="btn btn-outline-primary" for="chartBar"><i class="bi bi-bar-chart-fill me-2"></i>Barras</label>
                             <input type="radio" class="btn-check" name="chartType" id="chartPie" autocomplete="off" disabled>
                             <label class="btn btn-outline-primary" for="chartPie"><i class="bi bi-pie-chart-fill me-2"></i>Pastel</label>
                             <input type="radio" class="btn-check" name="chartType" id="chartLine" autocomplete="off" disabled>
                             <label class="btn btn-outline-primary" for="chartLine"><i class="bi bi-graph-up me-2"></i>Líneas</label>
+                            -->
                         </div>
                         <div id="chartWarning" class="form-text text-warning mt-1 d-none">Los gráficos requieren una agrupación (GROUP BY).</div>
                     </div>
@@ -91,32 +93,34 @@
                     <hr class="my-4">
 
                     <!-- Filtros avanzados (incluye JOINs y GROUP BY) -->
+                     <!----
                     <div class="mb-4">
                         <a class="advanced-filters-toggle text-decoration-none user-select-none" data-bs-toggle="collapse" href="#advancedFilters" role="button" aria-expanded="false">
                             <i class="bi bi-chevron-down me-2"></i> Filtros avanzados
                         </a>
                         <div class="collapse mt-3" id="advancedFilters">
-                            <!-- Filtros WHERE -->
+                    
                             <label class="section-title">Filtrar por</label>
                             <div id="filtersContainer"></div>
                             <button type="button" class="btn btn-sm btn-outline-secondary mt-2 mb-3" onclick="addFilterRow()">
                                 <i class="bi bi-plus-circle me-1"></i> Agregar filtro
                             </button>
 
-                            <!-- Combinar con otras tablas (JOINs) -->
+                      
                             <label class="section-title mt-2">Combinar con otras tablas (JOIN)</label>
                             <div id="joinsContainer"></div>
                             <button type="button" class="btn btn-sm btn-outline-secondary mt-2 mb-3" onclick="addJoinRow()">
                                 <i class="bi bi-plus-circle me-1"></i> Agregar unión
                             </button>
 
-                            <!-- Agrupación (GROUP BY) -->
+                
                             <label class="section-title">Agrupar por (Group by)</label>
                             <select id="groupBySelect" class="form-select" style="max-width: 300px;">
                                 <option value="">Sin agrupar</option>
                             </select>
                         </div>
                     </div>
+                    -->
 
                     <div class="d-grid mt-4">
                         <button id="btnExecute" class="btn btn-primary py-2 fw-medium">
